@@ -5,6 +5,9 @@ public import RiemannMasullo.Ch05_ThetaZSpaces.Sec5
 public import RiemannMasullo.Ch06_LocalGlobal.Sec2
 
 import all RiemannMasullo.Ch05_ThetaZSpaces.Sec1
+import all RiemannMasullo.Ch03_IdelicZeta.Sec3
+import all RiemannMasullo.Ch03_IdelicZeta.Sec2
+import all RiemannMasullo.AppA_AlgebraicNT.Sec3
 import all RiemannMasullo.Ch03_IdelicZeta.Sec3b
 import all RiemannMasullo.Ch07_SchauderBasesZeta.Sec1a
 
@@ -1536,7 +1539,17 @@ local notation "polarValuesₛ" =>
 
 /-- Paper: Equation (7.2.2.3), p. 340.
 Evaluation at zero before and after S-adelic Fourier transform is complex linear. -/
-theorem sAdelePolarValues_isLinear : IsLinearMap ℂ polarValuesₛ := by sorry
+theorem sAdelePolarValues_isLinear : IsLinearMap ℂ polarValuesₛ := by
+  obtain ⟨T, hT⟩ := sLocal_fourier_continuousLinear (F := F) (S := S)
+  constructor
+  · intro f g
+    refine Prod.ext rfl ?_
+    rw [← hT, map_add, hT, hT]
+    rfl
+  · intro c f
+    refine Prod.ext rfl ?_
+    rw [← hT, map_smul, hT]
+    rfl
 
 variable (F S) in
 /-- Paper: Equation (7.2.2.3), p. 340.
@@ -1557,7 +1570,30 @@ theorem mem_sAdelePolarSubspace (f : ℬₛ) :
 Insertion with integer indicators outside S preserves the two zero evaluations
 that define the polar subspaces. -/
 theorem sAdeleSchwartzToGlobal_mem_polarSubspace (f : sAdelePolarSubspace F S) :
-    sAdeleSchwartzToGlobal F S f.val ∈ adelePolarSubspace F := by sorry
+    sAdeleSchwartzToGlobal F S f.val ∈ adelePolarSubspace F := by
+  classical
+  let : MeasurableSpace 𝔸[F] := borel _
+  let : MeasurableSpace Aₛ := instMeasurableSpaceSAdeleRing F S
+  obtain ⟨hf, hFourier⟩ := (mem_sAdelePolarSubspace f.val).mp f.property
+  apply (mem_adelePolarSubspace _).mpr
+  constructor
+  · rw [sAdeleSchwartzToGlobal_apply]
+    simp only [map_zero, hf, ite_self]
+  · obtain ⟨c, _, _, hm, _⟩ := sAdeleProjection_dual_masses F S
+    have hLift : (fun x ↦ sAdeleSchwartzToGlobal F S f.val (Multiplicative.ofAdd x)) =
+        (integralAdelesOutside F S : Set 𝔸[F]).indicator
+          ((fun x ↦ f.val (Multiplicative.ofAdd x)) ∘ adeleProjection F S) := by
+      funext x
+      rw [sAdeleSchwartzToGlobal_apply]
+      simp only [Set.indicator, SetLike.mem_coe, integralTail_iff, Function.comp_apply]
+    have h := congrFun (tamagawaFourier_sAdeleLift F S c hm
+      (fun x ↦ f.val (Multiplicative.ofAdd x)) (partialTensor_integrable F S f.val)) 0
+    change tamagawaFourier _ _ _ 0 = 0
+    rw [hLift, h]
+    change (sAdeleTailDual F S).indicator
+      (fun x ↦ (c : ℝ) • sAdeleSchwartzFourier f.val
+        (Multiplicative.ofAdd (adeleProjection F S x))) 0 = 0
+    simp only [Set.indicator, map_zero, hFourier, smul_zero, ite_self]
 
 open Classical in
 /-- Paper: Corollary 7.2.2.2, p. 340.
