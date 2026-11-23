@@ -1,10 +1,14 @@
 module
 
 public import RiemannMasullo.Ch07_SchauderBasesZeta.Sec4
+import all RiemannMasullo.Ch04_PeriodicSchauderBases.Sec6
 
 import all RiemannMasullo.AppA_AlgebraicNT.Sec3
 
 import all RiemannMasullo.Ch03_IdelicZeta.Sec2
+
+import all RiemannMasullo.Ch05_ThetaZSpaces.Sec3a
+import all RiemannMasullo.Ch05_ThetaZSpaces.Sec5
 
 /-! # §7.5 Strong co-primality -/
 
@@ -65,10 +69,60 @@ theorem exists_strongCoprimalityThetaEmbedding (ω : PontryaginDual C₁) :
       IsEmbedding j ∧ ∀ (f : P) (g : C𝔽),
         (j ((K(ω)).mkQ f)).val.val g = homogeneousAdelicThetaLinearMap F ω f.val g := by sorry
 
+private theorem strongCoprimalityPrincipalValue_mem_polar_of_line
+    {E : Type*} [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+    (W : Submodule ℂ (StrongDual ℂ E)) (b l k : StrongDual ℂ E)
+    (hw : W = Submodule.span ℂ {b}) (hl : l ∈ W) (hk : k ∈ W)
+    (y x : E) (hy : l y = 1) (hx : l x = 0) : k x = 0 := by
+  rw [hw, Submodule.mem_span_singleton] at hl hk
+  obtain ⟨a, rfl⟩ := hl
+  obtain ⟨c, rfl⟩ := hk
+  change a * b y = 1 at hy
+  change a * b x = 0 at hx
+  change c * b x = 0
+  have ha : a ≠ 0 := fun h ↦ by simp [h] at hy
+  exact mul_eq_zero_of_right _ ((mul_eq_zero.mp hx).resolve_left ha)
+
 /-- Paper: Theorem 7.5.0.1 and Equation (7.5.0.3), pp. 374–375.
 The two zero moments are preserved by the finite principal-value operator. -/
 theorem strongCoprimalityPrincipalValue_mem_polar (S : Finset V) (f : P) :
-    adelePrincipalValue F S f.val ∈ P := by sorry
+    adelePrincipalValue F S f.val ∈ P := by
+  classical
+  rcases S.eq_empty_or_nonempty with rfl | hn
+  · rw [globalThetaPrincipalValue_isotypicAverage_emptyTest (F := F)]
+    exact f.property
+  let E := SchwartzBruhat (Multiplicative 𝔸[F])
+  let pv : E →L[ℂ] E :=
+    ⟨adelePrincipalValue F S, (adelePrincipalValue_isClosedEmbedding S).continuous⟩
+  let vals : E →L[ℂ] ℂ × ℂ := ⟨adelePolarValues, adelePolarValues_continuous⟩
+  obtain ⟨y, hy⟩ := adelePolarValues_surjective (F := F) ((1, 1) : ℂ × ℂ)
+  change vals y = (1, 1) at hy
+  have hx : vals f.val = 0 := f.property
+  have coord (L : ℂ × ℂ →L[ℂ] ℂ) (c : QuasiCharacter C𝔽)
+      (hL : L.comp vals ∈ adelicEigendistributions c) (h1 : L (1, 1) = 1) :
+      L (vals (pv f.val)) = 0 := by
+    let l := L.comp vals
+    have hk : l.comp pv ∈ adelicEigendistributions c := by
+      intro u t
+      have he := congrArg (fun q : GlobalAdelicThetaSpace F ↦ L (globalThetaPolarValues q))
+        (globalThetaPrincipalValue_equivariant hn u t)
+      exact he.trans (hL u (pv t))
+    exact strongCoprimalityPrincipalValue_mem_polar_of_line (adelicEigendistributions c)
+      (adelicNormalizedEigendistribution c) l (l.comp pv) (adelicEigendistributions_eq_span c) hL hk y f.val
+      ((congrArg L hy).trans h1) ((congrArg L hx).trans (map_zero L))
+  apply (mem_adelePolarSubspace _).2
+  constructor
+  · apply coord (ContinuousLinearMap.fst ℂ ℂ ℂ) 1 _ rfl
+    intro u t
+    change t (Multiplicative.ofAdd ((↑u⁻¹ : 𝔸[F]) * 0)) = 1 * t (Multiplicative.ofAdd 0)
+    rw [mul_zero, one_mul]
+  · apply coord (ContinuousLinearMap.snd ℂ ℂ ℂ) (ideleClassNormTwist (1 : U) 1) _ rfl
+    intro u t
+    change adeleSchwartzFourier (schwartzBruhatUnitTranslate u t) (Multiplicative.ofAdd 0) =
+      ((1 : ℂ) * (((ideleNorm F u).val : ℝ) : ℂ) ^ (1 : ℂ)) *
+        adeleSchwartzFourier t (Multiplicative.ofAdd 0)
+    rw [Complex.cpow_one, one_mul]
+    exact adeleSchwartzFourier_zero_unitTranslate u t
 
 /-- Paper: Equation (7.5.0.3), p. 375.
 The denominator is the image in homogeneous theta classes of principal values of
@@ -608,11 +662,93 @@ theorem strongCoprimalityDenominator_primary (p : Vℚ) :
   unfold strongCoprimalityDenominator finiteNuclearityDenominator
   with_reducible rfl
 
+/-- A norm-one character extends by projecting along a section of the class norm. -/
+private theorem strongCoprimalityPrimaryQuotient_lift (ω : PontryaginDual C₁) :
+    ∃ χ : U, ω(χ) = ω := by
+  have hmod := strongCoprimalityNorm_isModulation_surjective (F := F)
+  obtain ⟨σ, hσ⟩ := exists_surjectiveModulation_section m𝔽 hmod.1 hmod.2
+  have hk (g : C𝔽) : g / σ (m𝔽 g) ∈ (ideleClassNorm F).ker := by
+    change (ideleClassNorm F) (g / σ (m𝔽 g)) = 1
+    rw [map_div, show ideleClassNorm F (σ (m𝔽 g)) = m𝔽 g from hσ (m𝔽 g)]
+    change (ideleClassNorm F g) / (ideleClassNorm F g) = 1
+    exact div_self' _
+  let q : C𝔽 →ₜ* C₁ :=
+    { toFun := fun g ↦ ⟨g / σ (m𝔽 g), hk g⟩
+      map_one' := Subtype.ext (by simp)
+      map_mul' := fun g h ↦ Subtype.ext (by simp [mul_div_mul_comm])
+      continuous_toFun := (continuous_id.div' (σ.continuous.comp (m𝔽).continuous)).subtype_mk hk }
+  refine ⟨ω.comp q, ?_⟩
+  ext1 u
+  change ω (q u) = ω u
+  congr 1
+  apply Subtype.ext
+  change u.val / σ ((ideleClassNorm F) u.val) = u.val
+  rw [u.property, map_one, div_one]
+
+/-- The comparison denominator is an expanding difference-product range, whose quotient
+is separable, nuclear, and Fréchet. -/
+private theorem strongCoprimalityPrimaryQuotient_decay (ω : PontryaginDual C₁) (S : Finset V)
+    (π : (v : V) → (v.adicCompletion F)ˣ)
+    (hπ : ∀ v ∈ S, Valuation.IsUniformizer
+      (Valued.v : Valuation (v.adicCompletion F) (WithZero (Multiplicative ℤ))) (π v).val) :
+    let X := StrongCoprimalityDecaySpace ω ⧸ strongCoprimalityDifferenceRange ω S π
+    TopologicalSpace.SeparableSpace X ∧ IsNuclearTVS X ∧ IsFrechetTVS X := by
+  classical
+  have hmod := strongCoprimalityNorm_isModulation_surjective (F := F)
+  let a := fun v : V ↦ (IdeleClassGroup.ofAdicCompletion (𝓞 F) F v (π v))⁻¹
+  let gs := S.toList.map a
+  have hgs : ∀ g ∈ gs, 1 < (m𝔽 g).val := by
+    rintro g hg
+    obtain ⟨v, hv, rfl⟩ := List.mem_map.mp hg
+    have hu := hπ v (Finset.mem_toList.mp hv)
+    change (1 : ℝ≥0) < ((ideleClassNorm F ((IdeleClassGroup.ofAdicCompletion (𝓞 F) F v (π v))⁻¹)).val)
+    rw [map_inv, ideleClassNorm_ofAdicCompletion]
+    rw [Units.coe_map_inv]
+    change (1 : ℝ≥0) < ‖((π v)⁻¹).val‖₊
+    apply NNReal.coe_lt_coe.mp
+    simp only [NNReal.coe_one, coe_nnNorm, Units.val_inv_eq_inv_val, norm_inv]
+    rw [norm_uniformizer_adicCompletion v _ hu, inv_inv]
+    exact_mod_cast HeightOneSpectrum.one_lt_absNorm v
+  have heq : strongCoprimalityDifferenceRange ω S π =
+      fullDecayDifferenceRange m𝔽 hmod.1 hmod.2 ω gs := by
+    rw [fullDecayDifferenceRange_eq_span]
+    unfold strongCoprimalityDifferenceRange
+    congr 1
+    ext h
+    simp only [gs, List.foldr_map, a, strongCoprimalityDifference]
+  rw [heq]
+  exact modulatedIsotypicDifferenceProduct_quotient m𝔽 hmod.1 hmod.2 ω gs hgs
+
+/-- The strong-coprimality equivalence transfers the nuclear Fréchet structure from its
+difference quotient. -/
+private theorem strongCoprimalityPrimaryQuotient_character (χ : U) (S : Finset V) :
+    IsFrechetTVS (StrongCoprimalityQuotient ω(χ) S) ∧
+      IsNuclearTVS (StrongCoprimalityQuotient ω(χ) S) := by
+  classical
+  have h (v : V) := (Valued.v : Valuation (v.adicCompletion F)
+    (WithZero (Multiplicative ℤ))).exists_isUniformizer_of_isCyclic_of_nontrivial
+  let π : (v : V) → (v.adicCompletion F)ˣ := fun v ↦ Units.mk0 (h v).choose (h v).choose_spec.ne_zero
+  have hπ (v : V) : Valuation.IsUniformizer
+      (Valued.v : Valuation (v.adicCompletion F) (WithZero (Multiplicative ℤ))) (π v).val :=
+    (h v).choose_spec
+  let T := S.filter (fun v ↦ (ideleClassNormTwist χ 0).IsUnramifiedAt v)
+  have hp := strongCoprimalityPrimaryQuotient_decay ω(χ) T π (fun v _ ↦ hπ v)
+  let e := (strongCoprimality χ S π (fun v _ ↦ hπ v)).choose
+  have ht := separable_nuclear_frechet_of_equiv e.symm hp
+  exact ⟨ht.2.2, ht.2.1⟩
+
 /-- Paper: Remark 7.5.0.2 and Equation (7.5.0.15), p. 378.
 The primary principal-value quotient is a Hausdorff nuclear Fréchet space. -/
 theorem strongCoprimalityPrimaryQuotient_nuclearFrechet (ω : PontryaginDual C₁) (p : Vℚ) :
     let T := (finite_nuclearityPlacesAbove (F := F) p).toFinset
-    IsFrechetTVS (StrongCoprimalityQuotient ω T) ∧ IsNuclearTVS (StrongCoprimalityQuotient ω T) := by sorry
+    IsFrechetTVS (StrongCoprimalityQuotient ω T) ∧ IsNuclearTVS (StrongCoprimalityQuotient ω T) := by
+  let h := strongCoprimalityPrimaryQuotient_lift ω
+  let χ := h.choose
+  have hχ : ω(χ) = ω := h.choose_spec
+  exact (congrArg (fun η ↦ IsFrechetTVS (StrongCoprimalityQuotient η
+    (finite_nuclearityPlacesAbove (F := F) p).toFinset) ∧
+      IsNuclearTVS (StrongCoprimalityQuotient η (finite_nuclearityPlacesAbove (F := F) p).toFinset))
+    hχ).mp (strongCoprimalityPrimaryQuotient_character χ _)
 
 section SLocal
 

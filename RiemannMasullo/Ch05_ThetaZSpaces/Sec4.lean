@@ -5,6 +5,7 @@ public import Mathlib.Algebra.Exact.Basic
 public import Mathlib.MeasureTheory.Function.L2Space
 import RiemannMasullo.ForMathlib.Analysis.SpecialFunctions.Pow.Complex
 import all RiemannMasullo.Ch02_AdelicTheta.Sec3
+import all RiemannMasullo.Ch05_ThetaZSpaces.Sec1
 
 /-! # Second Structure Theorem and the S-local Čech sequence
 
@@ -398,7 +399,55 @@ theorem sLocalZetaPair_translate (χ : PontryaginDual Jₛ) (u : Aₛˣ) (f : �
       (Submodule.Quotient.mk (schwartzBruhatUnitTranslate (R := Aₛ) u f))
     EqOn q.1.val (fun s ↦ normChart(χ) s (QuotientGroup.mk u) * p.1.val s) rightHalf ∧
     EqOn q.2.val (fun s ↦ normChart(χ) s (QuotientGroup.mk u) * p.2.val s) leftHalf :=
-  by sorry
+  by
+  let p := sLocalZetaPair (F := F) (S := S) χ (Submodule.Quotient.mk f)
+  let q := sLocalZetaPair (F := F) (S := S) χ
+    (Submodule.Quotient.mk (schwartzBruhatUnitTranslate u f))
+  let L := fun s ↦ normChart(χ) s (QuotientGroup.mk u)
+  have hp := sLocalZetaPair_mk χ f
+  have hq := sLocalZetaPair_mk χ (schwartzBruhatUnitTranslate u f)
+  have hright : EqOn q.1.val (fun s ↦ L s * p.1.val s) rightHalf := by
+    intro s hs
+    change q.1.val s = L s * p.1.val s
+    refine (hq.1 hs).trans ?_
+    refine Eq.trans (b := L s * Zₛ f (normChart(χ) s)) ?_
+      (congrArg (L s * ·) (hp.1 hs).symm)
+    have hr : ∃ (ψ : PontryaginDual Jₛ) (t : ℂ),
+        0 < t.re ∧ normChart(χ) s = normChart(ψ) t := ⟨χ, s, hs, rfl⟩
+    change Zₛ (schwartzBruhatUnitTranslate u f) (normChart(χ) s) =
+      L s * Zₛ f (normChart(χ) s)
+    rw [sLocalIdelicZFunction_eq_integral _ hr, sLocalIdelicZFunction_eq_integral _ hr]
+    have := sIdeleGroup_borelSpace (F := F) (S := S)
+    have := sMultiplicativeTamagawaMeasure_isHaarMeasure (F := F) (S := S)
+    exact integral_translate_character (sMultiplicativeTamagawaMeasure F S)
+      (fun x ↦ f (Multiplicative.ofAdd x.val))
+      ((normChart(χ) s).toMonoidHom.comp (QuotientGroup.mk' _)) u
+  refine ⟨hright, ?_⟩
+  have hol (w : B⁻) : AnalyticOnNhd ℂ w.val leftHalf :=
+    w.property.2.1.analyticOnNhd (isOpen_Iio.preimage Complex.continuous_re)
+  have hL : AnalyticOnNhd ℂ L leftHalf := fun s _ ↦
+    normTwist_eval_analytic mₛ hmₛ _ _ s
+  apply (hol q.2).eqOn_of_preconnected_of_frequently_eq (hL.mul (hol p.2))
+    (convex_halfSpace_re_lt 1).isPreconnected (z₀ := 1/2) (by norm_num [mem_preimage])
+  have hband : ∀ᶠ s : ℂ in 𝓝[≠] (1 / 2 : ℂ), s ∈ overlap :=
+    nhdsWithin_le_nhds ((isOpen_Ioo.preimage Complex.continuous_re).mem_nhds (by
+      norm_num [mem_preimage, mem_Ioo]))
+  apply Filter.Eventually.frequently
+  filter_upwards [hband, nhdsNE_le_codiscrete _ (sLocalRhoFactor_mul_dual χ)] with s hs hprod
+  have hne : ρₛ(χ, s) ≠ 0 := left_ne_zero_of_mul
+    (hprod.trans_ne ((Group.isUnit (QuotientGroup.mk (-1 : Aₛˣ) : Jₛ)).map (normChart(χ) s)).ne_zero)
+  apply mul_left_cancel₀ hne
+  calc
+    ρₛ(χ, s) * q.2.val s = q.1.val s := by
+      rw [hq.1 hs.1, hq.2 hs.2]
+      exact (existsUnique_sLocalZetaPair_equation χ _ s hs).symm
+    _ = L s * p.1.val s := hright hs.1
+    _ = ρₛ(χ, s) * (L s * p.2.val s) := by
+      calc
+        _ = L s * (ρₛ(χ, s) * p.2.val s) := congrArg (L s * ·)
+          ((hp.1 hs.1).trans ((existsUnique_sLocalZetaPair_equation χ f s hs).trans
+            (congrArg (ρₛ(χ, s) * ·) (hp.2 hs.2).symm)))
+        _ = _ := by ring
 
 /-- Paper: Theorem 5.4.1.1(1), pp. 265–266.
 The componentwise multipliers give a jointly continuous action on the ambient pair.
