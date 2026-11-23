@@ -410,7 +410,27 @@ theorem exists_sLocalZetaPair_action (χ : PontryaginDual Jₛ) :
 /-- Paper: Theorem 5.4.1.1(2), p. 266.
 The quotient topology on every homogeneous S-local theta space is Fréchet. -/
 theorem sLocalHomogeneousThetaSpace_frechet (ω : PontryaginDual J₁) :
-    IsFrechetTVS (Θω(ω)) := by sorry
+    IsFrechetTVS (Θω(ω)) := by
+  obtain ⟨τ, hτ⟩ := sIdeleQuotientNorm_exists_section F S
+  obtain ⟨χ, hχ, _⟩ := existsUnique_sLocalNormSectionCharacter τ hτ ω
+  rw [← hχ.1]
+  obtain ⟨_, _, hMp, hCp⟩ := schwartzBergman_frechet rightInterval isOpen_Ioi
+    ordConnected_Ioi ⟨1, by norm_num⟩
+  obtain ⟨_, _, hMm, hCm⟩ := schwartzBergman_frechet leftInterval isOpen_Iio
+    ordConnected_Iio ⟨0, by norm_num⟩
+  let : MetrizableSpace B⁺ := hMp
+  let : MetrizableSpace B⁻ := hMm
+  let : CompleteSpace B⁺ := hCp
+  let : CompleteSpace B⁻ := hCm
+  let T := sLocalZetaPair (F := F) (S := S) χ
+  have hT : IsClosedEmbedding T := sLocalZetaPair_isClosedEmbedding χ
+  let : UniformSpace Θω(restrict₁(χ)) :=
+    IsTopologicalAddGroup.rightUniformSpace Θω(restrict₁(χ))
+  have : IsUniformAddGroup Θω(restrict₁(χ)) := isUniformAddGroup_of_addCommGroup
+  have hU : IsUniformInducing T :=
+    AddMonoidHom.isUniformInducing_of_isInducing (f := T.toAddMonoidHom) hT.isInducing
+  exact ⟨inferInstance, hT.isInducing.polynormableSpace (f := T),
+    hT.isEmbedding.metrizableSpace, hU.completeSpace hT.isClosed_range.isComplete⟩
 
 /-- A nuclear space is separable for each of its continuous seminorms (as in the private
 `seminorm_separable_of_nuclear` of Appendix D §1b): a totally bounded zero-neighbourhood
