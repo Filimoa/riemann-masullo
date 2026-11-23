@@ -1247,7 +1247,54 @@ local notation "𝓦(" I ")" => ArchimedeanWeightedSchwartz (ι := ι) (κ := κ
 When there are no coordinates, the weighted Schwartz space is the scalar field. -/
 theorem archimedeanWeightedSchwartz_empty_equiv (I : Set ℝ) :
     ∃ e : ArchimedeanWeightedSchwartz (ι := Empty) (κ := Empty) I ≃L[ℂ] ℂ,
-      ∀ f, e f = f.val (1 : archMul(Empty, Empty)) := by sorry
+      ∀ f, e f = f.val (1 : archMul(Empty, Empty)) := by
+  classical
+  let G := archMul(Empty, Empty)
+  let W := weights(Empty, Empty, I)
+  let E := archimedeanWeightedSchwartzSubmodule (ι := Empty) (κ := Empty) I
+  let P : SeminormFamily ℂ E (W × {p : Seminorm ℂ (SchwartzBruhat G) // Continuous p}) :=
+    fun i ↦ i.2.val.comp (archimedeanSchwartzTwist I i.1)
+  let X := WithGeneratingSeminorms E P
+  let a : W := (Empty.elim, Empty.elim)
+  have htwist (b : W) (f : E) (u : G) : archimedeanSchwartzTwist I b f u = f.val u := by
+    simp [archimedeanSchwartzTwist_apply]
+  obtain ⟨f, hf, _⟩ := schwartzBruhat_exists_test (1 : G) 1
+  let f₀ : E := ⟨f.val, by
+    apply (Submodule.mem_iInf _).mpr
+    intro b
+    change (fun u : G ↦ _ * _ * f.val u) ∈ schwartzBruhatSubmodule G
+    simpa using f.property⟩
+  let L : X →ₗ[ℂ] ℂ := (LinearMap.proj (1 : G)).comp E.subtype
+  have hL : Bijective L := by
+    constructor
+    · intro f g h
+      apply Subtype.ext
+      funext u
+      exact (congrArg f.val (Subsingleton.elim u 1)).trans
+        (h.trans (congrArg g.val (Subsingleton.elim 1 u)))
+    · intro c
+      refine ⟨(c / f 1) • f₀, ?_⟩
+      change (c / f 1) * f 1 = c
+      exact div_mul_cancel₀ c hf
+  let e : X ≃ₗ[ℂ] ℂ := LinearEquiv.ofBijective L hL
+  have hP := withGeneratingSeminorms_spec E P
+  let : ContinuousSMul ℂ X := hP.continuousSMul
+  have he : Continuous e := by
+    let ev : SchwartzBruhat G →ₗ[ℂ] ℂ := (LinearMap.proj (1 : G)).comp (schwartzBruhatSubmodule G).subtype
+    let q : Seminorm ℂ (SchwartzBruhat G) := (normSeminorm ℂ ℂ).comp ev
+    have hq : Continuous q := (continuous_schwartzBruhat_eval_forEndpoints (1 : G)).norm
+    apply (norm_withSeminorms ℂ ℂ).continuous_of_continuous_comp e.toLinearMap
+    intro _
+    exact (hP.continuous_seminorm (a, ⟨q, hq⟩)).congr (fun f ↦ by
+      change ‖archimedeanSchwartzTwist I a f 1‖ = ‖f.val 1‖
+      exact congrArg norm (htwist a f 1))
+  have he' : Continuous e.symm := by
+    have h : (e.symm : ℂ → X) = fun c ↦ c • e.symm 1 := by
+      funext c
+      rw [← map_smul, smul_eq_mul, mul_one]
+    rw [h]
+    fun_prop
+  exact ⟨⟨e, he, he'⟩, fun _ ↦ rfl⟩
 
 -- TODO(paper-gap): The proof's integer exponents need not meet I. Use a countable
 -- family of exponents in I bracketing each exponent in I, together with zero.
