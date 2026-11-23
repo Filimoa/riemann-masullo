@@ -51,7 +51,24 @@ theorem exists_divisorialThetaRepresentative (S : Finset V)
     (_hPic : Subsingleton (CommRing.Pic ((S : Set V).integer F))) (ω : PontryaginDual C₁)
     (_hω : NormOneCharacterUnramifiedOutside ω S) (f : adelePolarSubspace F) :
     ∃ fS : ℬₛ(S), homogeneousAdelicTheta ω (sAdeleSchwartzToGlobal F S fS) =
-      homogeneousAdelicTheta ω f.val := by sorry
+      homogeneousAdelicTheta ω f.val := by
+  obtain ⟨e, he⟩ :=
+    sLocalHomogeneousThetaToGlobal_equiv_of_unramified (F := F) (S := S) _hPic (ω := ω) _hω
+  have hsurj : Function.Surjective (sLocalHomogeneousThetaToGlobal (F := F) (ω := ω) _hω) := by
+    rw [← he]
+    exact e.surjective
+  obtain ⟨y, hy⟩ := hsurj ((LinearMap.ker (homogeneousAdelicThetaLinearMap F ω)).mkQ f.val)
+  obtain ⟨fS, hfS⟩ := Submodule.mkQ_surjective
+    (LinearMap.ker (sLocalHomogeneousAdelicThetaLinearMap F S
+      (sLocalNormOneCharacter (F := F) S ω _hω))) y
+  rw [← hfS] at hy
+  refine ⟨fS, ?_⟩
+  refine (globalHomogeneousThetaSpace_mk_eq_iff (F := F) ω _ _).mp ?_
+  have h1 : (homogeneousAdelicThetaLinearMap F ω).ker.mkQ ((sAdeleSchwartzToGlobal F S) fS)
+      = (homogeneousAdelicThetaLinearMap F ω).ker.mkQ (f.val) := by
+    rw [← sLocalHomogeneousThetaToGlobal_mk (F := F) (S := S) _hω fS]
+    exact hy
+  simpa only [Submodule.mkQ_apply] using h1
 
 /-- Paper: §11.3.1.1, p. 492, before (11.3.1.2). The local factor is the
 indicator of ideles whose component at the chosen finite place is a unit.

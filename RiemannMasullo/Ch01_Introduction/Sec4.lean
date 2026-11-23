@@ -2,10 +2,13 @@ module
 
 public import RiemannMasullo.Ch13_ZerosHecke.Sec3
 public import RiemannMasullo.AppB_AnalyticNT.Sec6
+import RiemannMasullo.External.TauCeti.Analysis.Complex.Conformal.Montel.Basic
 import all RiemannMasullo.Ch10_TraceSpectral.Sec1
 import all RiemannMasullo.AppB_AnalyticNT.Sec4b
 
 import all RiemannMasullo.Ch07_SchauderBasesZeta.Sec5
+import all RiemannMasullo.Ch03_IdelicZeta.Sec2
+import all RiemannMasullo.AppD_SchwartzBruhat.Sec3b
 
 /-! # From the trace formula to GRH
 
@@ -78,7 +81,49 @@ theorem introTraceTest_mellin (χ : U𝔽) (h : ℝ → ℂ) (φ : D𝔽)
     (_hφ : ∀ g, φ.val g = introTraceTest χ h g) (s : ℂ) :
     let f := fun g : C𝔽 ↦ φ.val g * ideleClassNormTwist χ s g
     Integrable f (ideleClassTamagawaMeasure F) ∧
-      (∫ g, f g ∂ideleClassTamagawaMeasure F) = τVolume * introTraceMellin h s := by sorry
+      (∫ g, f g ∂ideleClassTamagawaMeasure F) = τVolume * introTraceMellin h s := by
+  let W (g : C𝔽) := φ.val g * ideleClassNormTwist χ s g
+  have hc : Continuous φ.val := schwartzBruhat_continuous
+    (⟨φ.val, bruhatCompactSupport_mem_schwartz φ.property⟩ : SchwartzBruhat C𝔽)
+  have hW : Continuous W := hc.mul (ideleClassNormTwist χ s).continuous
+  refine ⟨hW.integrable_of_hasCompactSupport
+    (show HasCompactSupport φ.val from φ.property.2).mul_right, ?_⟩
+  have hrad (g : C𝔽) : W g = h (N(g)) * (N(g) : ℂ) ^ s := by
+    change φ.val g * ((χ g : ℂ) * (N(g) : ℂ) ^ s) = _
+    rw [_hφ, introTraceTest]
+    have hu : star (χ g : ℂ) * (χ g : ℂ) = 1 := by simp [← Circle.coe_inv_eq_conj]
+    linear_combination h (N(g)) * (N(g) : ℂ) ^ s * hu
+  let E : ℝ ≃ₜ ℝ≥0ˣ := Real.expOrderIso.toHomeomorph.trans (Nonneg.unitsHomeomorphPos ℝ).symm
+  let σ (x : ℝ) : C𝔽 := QuotientGroup.mk (canonicalIdeleNormSection F (E x))
+  have hσ : Continuous σ :=
+    continuous_quotient_mk'.comp ((canonicalIdeleNormSection_continuous F).comp E.continuous)
+  have hnorm (x : ℝ) : N(σ x) = Real.exp x :=
+    congrArg (fun t : ℝ≥0ˣ ↦ (t.val : ℝ)) (canonicalIdeleNormSection_rightInverse F (E x))
+  let l (g : C𝔽) := Real.log (N(g))
+  have hl : Measurable l := Real.measurable_log.comp
+    ((NNReal.continuous_coe.comp Units.continuous_val).comp
+      (isProperMap_ideleClassNorm F).continuous).measurable
+  have hsec (g : C𝔽) : W (σ (l g)) = W g := by
+    have he : Real.exp (l g) = N(g) := Real.exp_log (Units.zero_lt (ideleClassNorm F g))
+    rw [hrad, hrad, hnorm, he]
+  have hmellin : (∫ x : ℝ, W (σ x)) = introTraceMellin h s := by
+    rw [introTraceMellin, mellin, ← integral_comp_exp]
+    refine integral_congr_ae (.of_forall fun x ↦ ?_)
+    beta_reduce
+    rw [hrad, hnorm, Complex.real_smul, smul_eq_mul]
+    have he : (Real.exp x : ℂ) ≠ 0 := Complex.ofReal_ne_zero.mpr (Real.exp_pos x).ne'
+    rw [show (s : ℂ) = (s - 1) + 1 by ring, Complex.cpow_add _ _ he,
+      Complex.cpow_one, add_sub_cancel_right]
+    ring
+  change (∫ g, W g ∂ideleClassTamagawaMeasure F) = _
+  calc
+    _ = ∫ x, W (σ x) ∂(ideleClassTamagawaMeasure F).map l := by
+      rw [integral_map (f := fun x ↦ W (σ x)) hl.aemeasurable (hW.comp hσ).aestronglyMeasurable]
+      exact integral_congr_ae (.of_forall fun g ↦ (hsec g).symm)
+    _ = _ := by
+      rw [show (ideleClassTamagawaMeasure F).map l = _ from classTamagawa_map_log_norm (F := F),
+        integral_smul_nnreal_measure, hmellin]
+      rfl
 
 local notation "archClass(" w ")" => IdeleClassGroup.ofCompletion (𝓞 F) F w
 local notation "archIntegrand(" χ ", " h ", " w ")" =>
@@ -656,7 +701,19 @@ theorem introTrace_montel_of_bounded (K : Set ℂ) (_hK : IsCompact K)
     ∃ (k : ℕ → ℕ) (L₁ L₂ : ℂ → ℂ), StrictMono k ∧
       TendstoLocallyUniformlyOn (A ∘ k) L₁ atTop (interior K) ∧
       TendstoLocallyUniformlyOn (B ∘ k) L₂ atTop (interior K) ∧
-      AnalyticOnNhd ℂ L₁ (interior K) ∧ AnalyticOnNhd ℂ L₂ (interior K) := by sorry
+      AnalyticOnNhd ℂ L₁ (interior K) ∧ AnalyticOnNhd ℂ L₂ (interior K) := by
+  rcases _hbound with ⟨C, _, hC⟩
+  have hdiff : ∀ n, DifferentiableOn ℂ (fun z ↦ (A n z, B n z)) (interior K) :=
+    fun n ↦ (_hA n).prodMk (_hB n)
+  have hbounded : External.TauCeti.IsLocallyBoundedOn
+      (fun n z ↦ (A n z, B n z)) (interior K) :=
+    External.TauCeti.isLocallyBoundedOn_of_forall_norm_le fun n z hz ↦
+      norm_prod_le_iff.mpr (hC n z (interior_subset hz))
+  obtain ⟨k, L, hk, hL, hconv⟩ := External.TauCeti.montel isOpen_interior hdiff hbounded
+  exact ⟨k, Prod.fst ∘ L, Prod.snd ∘ L, hk,
+    uniformContinuous_fst.comp_tendstoLocallyUniformlyOn hconv,
+    uniformContinuous_snd.comp_tendstoLocallyUniformlyOn hconv,
+    hL.fst.analyticOnNhd isOpen_interior, hL.snd.analyticOnNhd isOpen_interior⟩
 
 -- TODO(paper-gap): Pointwise convergence of the individual Mellin terms
 -- leaves the infinite zero sum uncontrolled. At the trivial rational character and
