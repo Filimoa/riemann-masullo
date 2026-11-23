@@ -966,11 +966,62 @@ theorem iteratedWirtinger_exponentialDecay (conjugate : Bool) (m : ℕ) {a : ℝ
     ∃ D : 𝓔(ℂ, 2, Ioi a) →L[ℂ] 𝓔(ℂ, 2, Ioi (a + m)),
       ∀ f z, (D f).val z = ((wirtinger(conjugate))^[m] zeroExtension(f.val)) z.val := by sorry
 
+/-- Every output weight of the derivative comes from the input weight one lower;
+the initial topology of all twists makes this a continuous endomorphism. -/
+private theorem iteratedDeriv_allExponentialDecay_step :
+    ∃ D : 𝓔(ℝ, 1, univ) →L[ℂ] 𝓔(ℝ, 1, univ),
+      ∀ f x, (D f).val x = deriv zeroExtension(f.val) x.val := by
+  let n := archimedeanUnitModulation ℝ 1
+  let I : Set ℝ := univ
+  let J : Set ℝ := univ
+  let E := ModulatedExponentialDecay n I
+  let d (f : E) (x : ℝˣ) := deriv zeroExtension(f.val) x.val
+  have htwist (c : J) : ∃ U : E →L[ℂ] SchwartzBruhat ℝˣ,
+      ∀ f, (U f).val = modulationWeight n c (d f) := by
+    let b : I := ⟨c.val - 1, mem_univ _⟩
+    let W : E →L[ℂ] SchwartzBruhat ℝˣ := ⟨modulatedExponentialDecayTwist n I b,
+      (continuous_apply b).comp (iteratedDeriv_exponentialDecay_inducing I).continuous⟩
+    refine (iteratedDeriv_exponentialDecay_onTwist b).elim fun T hT ↦ ?_
+    refine ⟨T.comp W, fun f ↦ funext fun x ↦ ?_⟩
+    have h := hT f.val (W f) (fun y ↦ iteratedDeriv_exponentialDecay_weight b f.val y) x
+    refine h.trans ?_
+    rw [show (b : ℝ) + 1 = c.val from sub_add_cancel _ _, iteratedDeriv_exponentialDecay_weight]
+  let c₀ : J := ⟨0, mem_univ _⟩
+  let U := (htwist c₀).choose
+  let L : E →ₗ[ℂ] (ℝˣ → ℂ) := (modulationWeight n (-c₀.val)).comp
+    ((schwartzBruhatSubmodule ℝˣ).subtype.comp U.toLinearMap)
+  have hL (f : E) : L f = d f := by
+    funext x
+    change modulationWeight n (-c₀.val) (U f).val x = _
+    rw [(htwist c₀).choose_spec f, iteratedDeriv_exponentialDecay_weight,
+      iteratedDeriv_exponentialDecay_weight, ← mul_assoc, ← Complex.ofReal_mul,
+      ← Real.rpow_add (abs_pos.mpr x.ne_zero), neg_add_cancel, Real.rpow_zero, Complex.ofReal_one, one_mul]
+  let D := L.codRestrict (modulatedExponentialDecaySubmodule n J) fun f ↦
+    (Submodule.mem_iInf _).mpr fun c ↦ Submodule.mem_comap.mpr (by
+      change modulationWeight n c (L f) ∈ schwartzBruhatSubmodule ℝˣ
+      rw [hL f, ← (htwist c).choose_spec f]
+      exact ((htwist c).choose f).property)
+  refine ⟨⟨D, (iteratedDeriv_exponentialDecay_inducing J).continuous_iff.mpr (continuous_pi fun c ↦ ?_)⟩, fun f ↦ congrFun (hL f)⟩
+  exact (htwist c).choose.continuous.congr fun f ↦ Subtype.ext
+    (((htwist c).choose_spec f).trans (congrArg (modulationWeight n c) (hL f).symm))
+
 /-- Paper: Proposition 5.3.3.2(2)(1), p. 249.
 Ordinary derivatives act continuously on the punctured real space with decay at all exponents. -/
 theorem iteratedDeriv_allExponentialDecay (m : ℕ) :
     ∃ D : 𝓔(ℝ, 1, univ) →L[ℂ] 𝓔(ℝ, 1, univ),
-      ∀ f x, (D f).val x = iteratedDeriv m zeroExtension(f.val) x.val := by sorry
+      ∀ f x, (D f).val x = iteratedDeriv m zeroExtension(f.val) x.val := by
+  induction m with
+  | zero =>
+    refine ⟨ContinuousLinearMap.id ℂ _, fun f x ↦ ?_⟩
+    change f.val x = iteratedDeriv 0 _ x.val
+    simp only [iteratedDeriv_zero, dite_eq_left x.ne_zero]
+    exact congrArg f.val (Units.ext rfl)
+  | succ m ih =>
+    obtain ⟨A, hA⟩ := ih
+    obtain ⟨B, hB⟩ := iteratedDeriv_allExponentialDecay_step
+    refine ⟨B.comp A, fun f x ↦ ?_⟩
+    exact (hB (A f) x).trans
+      (iteratedDeriv_exponentialDecay_succ m (A f).val zeroExtension(f.val) (hA f) x)
 
 /-- Paper: Proposition 5.3.3.2(2)(2), p. 250.
 Both iterated Wirtinger operators preserve the punctured complex space with decay at all
