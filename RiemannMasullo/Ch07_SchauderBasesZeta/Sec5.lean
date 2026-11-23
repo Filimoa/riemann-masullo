@@ -1,6 +1,7 @@
 module
 
 public import RiemannMasullo.Ch07_SchauderBasesZeta.Sec4
+import all RiemannMasullo.Ch04_PeriodicSchauderBases.Sec6
 
 import all RiemannMasullo.AppA_AlgebraicNT.Sec3
 
@@ -592,11 +593,93 @@ theorem strongCoprimalityDenominator_primary (p : Vℚ) :
   unfold strongCoprimalityDenominator finiteNuclearityDenominator
   with_reducible rfl
 
+/-- A norm-one character extends by projecting along a section of the class norm. -/
+private theorem strongCoprimalityPrimaryQuotient_lift (ω : PontryaginDual C₁) :
+    ∃ χ : U, ω(χ) = ω := by
+  have hmod := strongCoprimalityNorm_isModulation_surjective (F := F)
+  obtain ⟨σ, hσ⟩ := exists_surjectiveModulation_section m𝔽 hmod.1 hmod.2
+  have hk (g : C𝔽) : g / σ (m𝔽 g) ∈ (ideleClassNorm F).ker := by
+    change (ideleClassNorm F) (g / σ (m𝔽 g)) = 1
+    rw [map_div, show ideleClassNorm F (σ (m𝔽 g)) = m𝔽 g from hσ (m𝔽 g)]
+    change (ideleClassNorm F g) / (ideleClassNorm F g) = 1
+    exact div_self' _
+  let q : C𝔽 →ₜ* C₁ :=
+    { toFun := fun g ↦ ⟨g / σ (m𝔽 g), hk g⟩
+      map_one' := Subtype.ext (by simp)
+      map_mul' := fun g h ↦ Subtype.ext (by simp [mul_div_mul_comm])
+      continuous_toFun := (continuous_id.div' (σ.continuous.comp (m𝔽).continuous)).subtype_mk hk }
+  refine ⟨ω.comp q, ?_⟩
+  ext1 u
+  change ω (q u) = ω u
+  congr 1
+  apply Subtype.ext
+  change u.val / σ ((ideleClassNorm F) u.val) = u.val
+  rw [u.property, map_one, div_one]
+
+/-- The comparison denominator is an expanding difference-product range, whose quotient
+is separable, nuclear, and Fréchet. -/
+private theorem strongCoprimalityPrimaryQuotient_decay (ω : PontryaginDual C₁) (S : Finset V)
+    (π : (v : V) → (v.adicCompletion F)ˣ)
+    (hπ : ∀ v ∈ S, Valuation.IsUniformizer
+      (Valued.v : Valuation (v.adicCompletion F) (WithZero (Multiplicative ℤ))) (π v).val) :
+    let X := StrongCoprimalityDecaySpace ω ⧸ strongCoprimalityDifferenceRange ω S π
+    TopologicalSpace.SeparableSpace X ∧ IsNuclearTVS X ∧ IsFrechetTVS X := by
+  classical
+  have hmod := strongCoprimalityNorm_isModulation_surjective (F := F)
+  let a := fun v : V ↦ (IdeleClassGroup.ofAdicCompletion (𝓞 F) F v (π v))⁻¹
+  let gs := S.toList.map a
+  have hgs : ∀ g ∈ gs, 1 < (m𝔽 g).val := by
+    rintro g hg
+    obtain ⟨v, hv, rfl⟩ := List.mem_map.mp hg
+    have hu := hπ v (Finset.mem_toList.mp hv)
+    change (1 : ℝ≥0) < ((ideleClassNorm F ((IdeleClassGroup.ofAdicCompletion (𝓞 F) F v (π v))⁻¹)).val)
+    rw [map_inv, ideleClassNorm_ofAdicCompletion]
+    rw [Units.coe_map_inv]
+    change (1 : ℝ≥0) < ‖((π v)⁻¹).val‖₊
+    apply NNReal.coe_lt_coe.mp
+    simp only [NNReal.coe_one, coe_nnNorm, Units.val_inv_eq_inv_val, norm_inv]
+    rw [norm_uniformizer_adicCompletion v _ hu, inv_inv]
+    exact_mod_cast HeightOneSpectrum.one_lt_absNorm v
+  have heq : strongCoprimalityDifferenceRange ω S π =
+      fullDecayDifferenceRange m𝔽 hmod.1 hmod.2 ω gs := by
+    rw [fullDecayDifferenceRange_eq_span]
+    unfold strongCoprimalityDifferenceRange
+    congr 1
+    ext h
+    simp only [gs, List.foldr_map, a, strongCoprimalityDifference]
+  rw [heq]
+  exact modulatedIsotypicDifferenceProduct_quotient m𝔽 hmod.1 hmod.2 ω gs hgs
+
+/-- The strong-coprimality equivalence transfers the nuclear Fréchet structure from its
+difference quotient. -/
+private theorem strongCoprimalityPrimaryQuotient_character (χ : U) (S : Finset V) :
+    IsFrechetTVS (StrongCoprimalityQuotient ω(χ) S) ∧
+      IsNuclearTVS (StrongCoprimalityQuotient ω(χ) S) := by
+  classical
+  have h (v : V) := (Valued.v : Valuation (v.adicCompletion F)
+    (WithZero (Multiplicative ℤ))).exists_isUniformizer_of_isCyclic_of_nontrivial
+  let π : (v : V) → (v.adicCompletion F)ˣ := fun v ↦ Units.mk0 (h v).choose (h v).choose_spec.ne_zero
+  have hπ (v : V) : Valuation.IsUniformizer
+      (Valued.v : Valuation (v.adicCompletion F) (WithZero (Multiplicative ℤ))) (π v).val :=
+    (h v).choose_spec
+  let T := S.filter (fun v ↦ (ideleClassNormTwist χ 0).IsUnramifiedAt v)
+  have hp := strongCoprimalityPrimaryQuotient_decay ω(χ) T π (fun v _ ↦ hπ v)
+  let e := (strongCoprimality χ S π (fun v _ ↦ hπ v)).choose
+  have ht := separable_nuclear_frechet_of_equiv e.symm hp
+  exact ⟨ht.2.2, ht.2.1⟩
+
 /-- Paper: Remark 7.5.0.2 and Equation (7.5.0.15), p. 378.
 The primary principal-value quotient is a Hausdorff nuclear Fréchet space. -/
 theorem strongCoprimalityPrimaryQuotient_nuclearFrechet (ω : PontryaginDual C₁) (p : Vℚ) :
     let T := (finite_nuclearityPlacesAbove (F := F) p).toFinset
-    IsFrechetTVS (StrongCoprimalityQuotient ω T) ∧ IsNuclearTVS (StrongCoprimalityQuotient ω T) := by sorry
+    IsFrechetTVS (StrongCoprimalityQuotient ω T) ∧ IsNuclearTVS (StrongCoprimalityQuotient ω T) := by
+  let h := strongCoprimalityPrimaryQuotient_lift ω
+  let χ := h.choose
+  have hχ : ω(χ) = ω := h.choose_spec
+  exact (congrArg (fun η ↦ IsFrechetTVS (StrongCoprimalityQuotient η
+    (finite_nuclearityPlacesAbove (F := F) p).toFinset) ∧
+      IsNuclearTVS (StrongCoprimalityQuotient η (finite_nuclearityPlacesAbove (F := F) p).toFinset))
+    hχ).mp (strongCoprimalityPrimaryQuotient_character χ _)
 
 section SLocal
 
