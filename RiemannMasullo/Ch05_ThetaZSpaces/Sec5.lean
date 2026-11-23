@@ -1,6 +1,7 @@
 module
 
 public import RiemannMasullo.Ch05_ThetaZSpaces.Sec4
+import all RiemannMasullo.Ch05_ThetaZSpaces.Sec1
 
 import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.SeparatingDual
 
@@ -542,13 +543,41 @@ end SLocal
 
 section Global
 
+/-- Two norm charts for the same quasi-character have the same norm-one
+restriction, and hence the same standard Gaussian. -/
+private theorem existsUnique_adelicNormalizedEigendistribution_gaussian
+    (χ ψ : PontryaginDual C𝔽) (s t : ℂ)
+    (h : ideleClassNormTwist χ s = ideleClassNormTwist ψ t) :
+    adelicStandardGaussian χ = adelicStandardGaussian ψ := by
+  apply adelicStandardGaussian_eq_of_restriction
+  ext g
+  have he := DFunLike.congr_fun h g.val
+  change (χ g.val : ℂ) * (((m𝔽 g.val : ℝ≥0) : ℝ) : ℂ) ^ s =
+    (ψ g.val : ℂ) * (((m𝔽 g.val : ℝ≥0) : ℝ) : ℂ) ^ t at he
+  change (χ g.val : ℂ) * (((m𝔽 g.val : ℝ≥0) : ℝ) : ℂ) ^ (0 : ℂ) =
+    (ψ g.val : ℂ) * (((m𝔽 g.val : ℝ≥0) : ℝ) : ℂ) ^ (0 : ℂ)
+  simp only [Complex.cpow_zero, mul_one]
+  have hg : m𝔽 g.val = 1 := g.property
+  rw [hg] at he
+  simpa using he
+
 /-- Paper: Theorem 5.5.1.3(1), p. 279.
 The global normalized generator from §3.4 is uniquely specified by its
 weight and by its value on the standard Gaussian in any chart. -/
 theorem existsUnique_adelicNormalizedEigendistribution (c : QuasiCharacter C𝔽) :
     ∃! T : D(ℬ(𝔸[F])), T ∈ adelicEigendistributions c ∧
       ∀ (χ : PontryaginDual C𝔽) (s : ℂ), ideleClassNormTwist χ s = c →
-        T (adelicStandardGaussian χ) = 1 := by sorry
+        T (adelicStandardGaussian χ) = 1 := by
+  obtain ⟨χ, s, rfl⟩ := exists_ideleClassNormTwist c
+  let D := (adelicEigendistribution_normalized (F := F) χ).choose
+  have hD := (adelicEigendistribution_normalized (F := F) χ).choose_spec.2.1 s
+  have hd := (hD (D s)).mp rfl
+  refine ⟨D s, ⟨hd.1, ?_⟩, ?_⟩
+  · intro ψ t he
+    rw [existsUnique_adelicNormalizedEigendistribution_gaussian ψ χ t s he]
+    exact hd.2
+  · intro T hT
+    exact (hD T).mpr ⟨hT.1, hT.2 χ s rfl⟩
 
 /-- Paper: Theorem 5.5.1.3(1), p. 279.
 The global generator is the Gaussian-normalized eigendistribution.
