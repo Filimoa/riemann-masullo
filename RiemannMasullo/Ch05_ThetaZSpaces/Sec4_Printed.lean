@@ -4,6 +4,7 @@ public import RiemannMasullo.Ch05_ThetaZSpaces.Sec4
 import all RiemannMasullo.Ch07_SchauderBasesZeta.Sec1a
 import all RiemannMasullo.Ch05_ThetaZSpaces.Sec4
 import all RiemannMasullo.Ch02_AdelicTheta.Sec3
+import all RiemannMasullo.Ch04_PeriodicSchauderBases.Sec6
 
 /-!
 # Chapter 5.4: statements that are false as printed
@@ -211,16 +212,112 @@ def Printed.sLocalZetaPair_reflectedShift : Prop :=
         let p₀ := sLocalZetaPair (F := F) (S := S) χ₀ (Submodule.Quotient.mk f)
         EqOn p.2.val (fun s ↦ p₀.2.val (s - (x : ℂ) * Complex.I)) leftHalf
 
+/-- A Schwartz–Bergman function constant on a vertical line vanishes there. -/
+private theorem Printed.sLocalZetaPair_reflectedShift_false_vertical (I : Set ℝ) (p : SchwartzBergman I)
+    (a : ℝ) (ha : a ∈ I) (hp : ∀ y : ℝ, p.val ((a : ℂ) + (y : ℂ) * Complex.I) = p.val a) :
+    p.val a = 0 := by
+  by_contra hn
+  have hnpos : 0 < ‖p.val a‖ := norm_pos_iff.mpr hn
+  obtain ⟨C,hC⟩ := p.property.2.2 a a le_rfl
+    (by simpa only [Icc_self, singleton_subset_iff] using ha) 1
+  obtain ⟨n,hn⟩ := exists_nat_gt (C / ‖p.val a‖)
+  let z : ℂ := (a : ℂ) + (n : ℂ) * Complex.I
+  have hz : z.re ∈ Icc a a := by simp [z]
+  have hb := hC ⟨z,hz,rfl⟩
+  have hv : p.val z = p.val a := by simpa only [Complex.ofReal_natCast] using hp n
+  have hzn : (n : ℝ) ≤ ‖z‖ := by simpa [z] using Complex.abs_im_le_norm z
+  have hlt : C < (n : ℝ) * ‖p.val a‖ := (div_lt_iff₀ hnpos).mp hn
+  change ‖z ^ 1 * p.val z‖ ≤ C at hb
+  rw [pow_one, norm_mul, hv] at hb
+  exact (hlt.trans_le ((mul_le_mul_of_nonneg_right hzn hnpos.le).trans hb)).false
+/-- A norm-frequency lift shifts the reflected Fourier coordinate by the positive frequency. -/
+private theorem Printed.sLocalZetaPair_reflectedShift_false_coordinate (χ : PontryaginDual (SIdeleQuotient ℚ ∅)) (x : ℝ)
+    (hχ : ∀ g, (χ g : ℂ) = ((((sIdeleQuotientNorm ℚ ∅ g).val : ℝ) : ℂ) ^ ((x : ℂ) * Complex.I)))
+    (f : SchwartzBruhat (Multiplicative (SAdeleRing ℚ ∅)))
+    (s : ℂ) (hs : s.re < 1) :
+    (sLocalZetaPair χ (Submodule.Quotient.mk f)).2.val s =
+      (sLocalZetaPair (1 : PontryaginDual (SIdeleQuotient ℚ ∅)) (Submodule.Quotient.mk f)).2.val
+        (s + (x : ℂ) * Complex.I) := by
+  let m := sIdeleQuotientNorm ℚ ∅
+  let c (ψ : PontryaginDual (SIdeleQuotient ℚ ∅)) (z : ℂ) :=
+    quasiCharacterNormTwist m (isProperMap_sIdeleQuotientNorm ℚ ∅).continuous
+      ((⟨Circle.coeHom, continuous_subtype_val⟩ : Circle →ₜ* ℂ).comp ψ) z
+  have hc : c χ⁻¹ (1-s) = c 1⁻¹ (1-(s+(x:ℂ)*Complex.I)) := by
+    apply ContinuousMonoidHom.ext
+    intro g
+    have hn : ((((m g).val : ℝ) : ℂ)) ≠ 0 :=
+      Complex.ofReal_ne_zero.mpr (NNReal.coe_ne_zero.mpr (m g).ne_zero)
+    change (χ⁻¹ g : ℂ) * ((((m g).val : ℝ) : ℂ) ^ (1-s)) =
+      (((1 : PontryaginDual (SIdeleQuotient ℚ ∅))⁻¹ g : Circle) : ℂ) *
+        ((((m g).val : ℝ) : ℂ) ^ (1-(s+(x:ℂ)*Complex.I)))
+    simp only [inv_one, PontryaginDual.one_apply, Circle.coe_one]
+    rw [show ((χ⁻¹ g : Circle) : ℂ) = (χ g : ℂ)⁻¹ from Circle.coe_inv (χ g),
+      hχ g, ← Complex.cpow_neg, ← Complex.cpow_add _ _ hn, one_mul]
+    congr 1
+    ring
+  have hs' : (s + (x : ℂ) * Complex.I).re < 1 := by simpa using hs
+  exact ((sLocalZetaPair_mk χ f).2 hs).trans
+    ((congrArg (sLocalIdelicZFunction (sAdeleSchwartzFourier f)) hc).trans
+      ((sLocalZetaPair_mk (1 : PontryaginDual (SIdeleQuotient ℚ ∅)) f).2 hs').symm)
+
 /-- Paper: Remark 5.4.1.2, p. 266.
-Take `F = ℚ`, `S` consisting of the real place, the positive-real section, and the lift
-`χ(g) = |g|^i` of the trivial norm-one character, so `x = 1`. For the self-dual Gaussian
-`f(y) = exp(−πy²)`, write `Z(z) = π^(−z/2) Γ(z/2)` for its norm-twist zeta function.
-At `s = 1 − ε + i` with `ε > 0`, the printed shift gives `Z(ε)` while the lifted
-Fourier coordinate is `Z(ε − 2i)`. The former has a pole as `ε` tends to zero and the
-latter has a finite limit.
--/
+Over the rationals with no finite places, the correct reflected coordinate for
+`χ(g) = |g|^(ix)` is the trivial-character coordinate at `s + ix`. The printed
+shift `s - ix`, applied for every real frequency, would make this coordinate
+constant on the line `Re s = 1/4`. The weight-one Schwartz–Bergman bound forces
+the constant to vanish. The rational Gaussian and the functional equation give
+a nonzero value there, as in the translation refutation above. -/
 theorem Printed.sLocalZetaPair_reflectedShift_false : ¬ Printed.sLocalZetaPair_reflectedShift := by
-  sorry
+  intro h
+  let p := Units.map (adeleProjection ℚ ∅).toMonoidHom
+  have hp : Continuous p := (continuous_fst.prodMk (continuous_pi fun v : (∅ : Finset (HeightOneSpectrum (𝓞 ℚ))) ↦
+    (RestrictedProduct.continuous_eval v.val).comp continuous_snd)).units_map _
+  let σ : ℝ≥0ˣ →ₜ* (SAdeleRing ℚ ∅)ˣ := ⟨p.comp (canonicalIdeleNormSection ℚ),
+    hp.comp (canonicalIdeleNormSection_continuous ℚ)⟩
+  have hσ : RightInverse σ (sIdeleNorm ℚ ∅) := thetaSection_rightInverse ℚ ∅
+  let q : (SAdeleRing ℚ ∅)ˣ →ₜ* SIdeleQuotient ℚ ∅ := ⟨QuotientGroup.mk' _, QuotientGroup.continuous_mk⟩
+  let τ := q.comp σ
+  let m := sIdeleQuotientNorm ℚ ∅
+  have hτ : RightInverse τ m := hσ
+  obtain ⟨f,hf⟩ := Printed.sLocalZetaPair_translate_false_gaussian σ hσ
+  let ev (χ : PontryaginDual (SIdeleQuotient ℚ ∅)) (z : ℂ) :=
+    (sLocalZetaPair χ (Submodule.Quotient.mk f)).2.val z
+  have hconst (y : ℝ) : ev 1 ((1/4 : ℂ) + (y : ℂ) * Complex.I) = ev 1 (1/4) := by
+    let x : ℝ := y/2
+    obtain ⟨ψ,hψ⟩ := exists_positiveRealCharacter x
+    let χ : PontryaginDual (SIdeleQuotient ℚ ∅) := ψ.comp ⟨m, (isProperMap_sIdeleQuotientNorm ℚ ∅).continuous⟩
+    have hval (g : SIdeleQuotient ℚ ∅) : (χ g : ℂ) =
+        ((((m g).val : ℝ) : ℂ) ^ ((x : ℂ) * Complex.I)) :=
+      (congrArg (fun z : Circle ↦ (z : ℂ)) (hψ (m g))).trans (coe_circleExp_mul_log x (m g))
+    have hres : χ.comp (⟨m.ker.subtype, continuous_subtype_val⟩ : m.ker →ₜ* SIdeleQuotient ℚ ∅) = (1 : PontryaginDual m.ker) := by
+      apply ContinuousMonoidHom.ext
+      intro g
+      change ψ (m g.val) = 1
+      rw [g.property, map_one]
+    let χ₀ : PontryaginDual (SIdeleQuotient ℚ ∅) :=
+      (existsUnique_sLocalNormSectionCharacter τ hτ
+        (χ.comp (⟨m.ker.subtype, continuous_subtype_val⟩ : m.ker →ₜ* SIdeleQuotient ℚ ∅))).exists.choose
+    have hχ₀ : χ₀ = 1 := (existsUnique_sLocalNormSectionCharacter τ hτ _).unique
+      (existsUnique_sLocalNormSectionCharacter τ hτ _).exists.choose_spec
+      ⟨hres.symm, fun _ ↦ rfl⟩
+    have hx (t : ℝ≥0ˣ) : (χ (τ t) : ℂ) = (((t.val : ℝ) : ℂ) ^ ((x : ℂ) * Complex.I)) :=
+      (hval (τ t)).trans (congrArg (fun u : ℝ≥0ˣ ↦ (((u.val : ℝ) : ℂ) ^ ((x : ℂ) * Complex.I))) (hτ t))
+    let s : ℂ := (1/4 : ℂ) + (x : ℂ) * Complex.I
+    have hs : s.re < 1 := by norm_num [s]
+    have hc : ev χ s = ev 1 (s + (x : ℂ) * Complex.I) := Printed.sLocalZetaPair_reflectedShift_false_coordinate χ x hval f s hs
+    have he : ev χ s = ev χ₀ (s - (x : ℂ) * Complex.I) := h ℚ ∅ τ hτ χ x hx f hs
+    have hplus : s + (x : ℂ) * Complex.I = (1/4 : ℂ) + (y : ℂ) * Complex.I := by dsimp [s,x]; push_cast; ring
+    have hminus : s - (x : ℂ) * Complex.I = (1/4 : ℂ) := by dsimp [s]; ring
+    exact (congrArg (ev 1) hplus).symm.trans (hc.symm.trans
+      (he.trans ((congrArg (fun ψ ↦ ev ψ (s - (x : ℂ) * Complex.I)) hχ₀).trans (congrArg (ev 1) hminus))))
+  have hz := Printed.sLocalZetaPair_reflectedShift_false_vertical (Iio (1 : ℝ))
+    (sLocalZetaPair (1 : PontryaginDual (SIdeleQuotient ℚ ∅)) (Submodule.Quotient.mk f)).2
+    (1/4) (by norm_num) (by simpa only [Complex.ofReal_div, Complex.ofReal_one, Complex.ofReal_ofNat] using hconst)
+  have he := existsUnique_sLocalZetaPair_equation (1 : PontryaginDual (SIdeleQuotient ℚ ∅)) f (1/4) (by norm_num)
+  have hr := (sLocalZetaPair_mk (1 : PontryaginDual (SIdeleQuotient ℚ ∅)) f).2
+    (show (1/4 : ℂ).re < 1 by norm_num)
+  have hz' : ev 1 (1/4) = 0 := by simpa only [Complex.ofReal_div, Complex.ofReal_one, Complex.ofReal_ofNat] using hz
+  exact hf (he.trans ((congrArg (fun z : ℂ ↦ _ * z) (hr.symm.trans hz')).trans (mul_zero _)))
 
 /-- Paper: Theorem 5.4.2.2(2), p. 276.
 As printed: radial inversion with the factor `t⁻¹` and the norm-one coordinate fixed sends
