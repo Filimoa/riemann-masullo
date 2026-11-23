@@ -947,7 +947,32 @@ theorem existsUnique_sLocalCechDifference (χ : PontryaginDual Jₛ)
 /-- Paper: Remark 5.4.2.3 and (5.4.2.7), p. 277.
 The pair of homogeneous theta functions of a test and its Fourier transform
 embeds the homogeneous quotient as a closed subspace of the two weighted isotypes. -/
-theorem sLocalCechThetaPair_isClosedEmbedding (χ : PontryaginDual Jₛ) : IsClosedEmbedding cechThetaPair(χ) := by sorry
+theorem sLocalCechThetaPair_isClosedEmbedding (χ : PontryaginDual Jₛ) : IsClosedEmbedding cechThetaPair(χ) := by
+  let τ := (sIdeleQuotientNorm_exists_section F S).choose
+  have hτ := (sIdeleQuotientNorm_exists_section F S).choose_spec
+  let x := (existsUnique_sLocalCechFrequency χ τ).exists.choose
+  have hx := (existsUnique_sLocalCechFrequency χ τ).exists.choose_spec
+  have hM₁ := existsUnique_sLocalDecayMellin τ hτ rightInterval
+    isOpen_Ioi ordConnected_Ioi ⟨1, by norm_num⟩ restrict₁(χ) x
+  have hM₂ := existsUnique_sLocalDecayMellin τ hτ rightInterval
+    isOpen_Ioi ordConnected_Ioi ⟨1, by norm_num⟩ restrict₁(χ⁻¹) (-x)
+  let M₁ : Eω(rightInterval, restrict₁(χ)) ≃L[ℂ] B⁺ := hM₁.exists.choose
+  let M₂ : Eω(rightInterval, restrict₁(χ⁻¹)) ≃L[ℂ] B⁺ := hM₂.exists.choose
+  have h₁ := hM₁.exists.choose_spec
+  have h₂ := hM₂.exists.choose_spec
+  let e : upperMiddle(χ) ≃L[ℂ] B⁺ × B⁺ := M₁.prodCongr M₂
+  let U : Θω(restrict₁(χ)) →L[ℂ] B⁺ × B⁺ := e.toContinuousLinearMap.comp cechThetaPair(χ)
+  have hU : IsClosedEmbedding U := sLocalCechBergman_isClosedEmbedding χ U (by
+    intro f
+    exact sLocalCech_left_commutes χ τ hτ x hx M₁ M₂
+      (fun g s hs ↦ (h₁ g s hs).2)
+      (fun g s hs ↦ by simpa only [M₂, neg_mul, Complex.ofReal_neg, sub_eq_add_neg] using
+        (h₂ g s hs).2) f)
+  have heq : e.symm ∘ U = ⇑cechThetaPair(χ) := by
+    funext z
+    exact e.symm_apply_apply _
+  have h := e.symm.toHomeomorph.isClosedEmbedding.comp hU
+  exact heq ▸ h
 
 end Cech
 
