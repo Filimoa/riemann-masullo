@@ -1200,6 +1200,123 @@ theorem strongCoprimalityPrimaryQuotient_sequence_subquotient (ω : PontryaginDu
 -- TODO(prerequisite): The separate Köthe-space assertion requires a general
 -- Köthe-space model. The example in §C.1.5, p. 667 is unfinished.
 
+open TopologicalSpace in
+/-- Coordinate projection has a continuous zero-extension right inverse, including empty products. -/
+private theorem strongCoprimalityPrimaryQuotient_strongDual_coordinates {M N : ℕ} (h : M ≤ N) :
+    ∃ (proj : (Fin N → RapidDecaySequence 1) →L[ℂ] (Fin M → RapidDecaySequence 1))
+      (J : (Fin M → RapidDecaySequence 1) →L[ℂ] (Fin N → RapidDecaySequence 1)), RightInverse J proj := by
+  classical
+  let proj : (Fin N → RapidDecaySequence 1) →L[ℂ] (Fin M → RapidDecaySequence 1) :=
+    ContinuousLinearMap.pi fun k ↦ ContinuousLinearMap.proj (Fin.castLE h k)
+  let J : (Fin M → RapidDecaySequence 1) →L[ℂ] (Fin N → RapidDecaySequence 1) :=
+    ContinuousLinearMap.pi fun i ↦ if hi : i.val < M then ContinuousLinearMap.proj ⟨i.val, hi⟩ else 0
+  refine ⟨proj,J,fun a ↦ funext fun k ↦ ?_⟩
+  simp [proj,J,k.isLt]
+open TopologicalSpace in
+/-- Open mapping upgrades bijective rapid-sequence synthesis to a topological linear equivalence. -/
+private theorem strongCoprimalityPrimaryQuotient_strongDual_sequenceEquiv {X : Type*} [AddCommGroup X] [Module ℂ X]
+    [TopologicalSpace X] [IsTopologicalAddGroup X] [ContinuousSMul ℂ X]
+    (hX : IsFrechetTVS X) {N : ℕ}
+    (A : (Fin N → RapidDecaySequence 1) →L[ℂ] X) (hA : Bijective A) :
+    Nonempty ((Fin N → RapidDecaySequence 1) ≃L[ℂ] X) := by
+  let R := RapidDecaySequence 1
+  let E := Fin N → R
+  obtain ⟨_, _, hm, hc⟩ := (rapidDecaySequence_isFrechet (r := 1))
+  let : CompleteSpace R := by rwa [IsUniformAddGroup.rightUniformSpace_eq] at hc
+  have hE : IsFrechetTVS E := by
+    refine ⟨inferInstance, inferInstance, inferInstance, ?_⟩
+    rw [IsUniformAddGroup.rightUniformSpace_eq]
+    infer_instance
+  let : MetrizableSpace X := hX.2.2.1
+  let : T2Space X := inferInstance
+  have hop : IsOpenMap A := isOpenMap_of_surjective_toLF (isLFSpace_of_isFrechetTVS hX)
+    (X := fun _ ↦ E) (fun _ ↦ hE) (fun _ ↦ ContinuousLinearMap.id ℂ E)
+    (fun _ ↦ Subset.rfl) (fun a ↦ ⟨0,a,rfl⟩) A hA.2
+  let e := LinearEquiv.ofBijective A.toLinearMap hA
+  exact ⟨{ e with continuous_toFun := A.continuous, continuous_invFun := e.toEquiv.continuous_symm_iff.mpr hop }⟩
+open TopologicalSpace in
+/-- Transposing a split surjection identifies its strong dual with a closed complemented subspace. -/
+private theorem strongCoprimalityPrimaryQuotient_strongDual_retract {X E : Type*} [AddCommGroup X] [Module ℂ X]
+    [TopologicalSpace X] [IsTopologicalAddGroup X] [ContinuousSMul ℂ X]
+    [AddCommGroup E] [Module ℂ E] [TopologicalSpace E] [IsTopologicalAddGroup E] [ContinuousSMul ℂ E]
+    (A : E →L[ℂ] X) (J : X →L[ℂ] E) (hAJ : RightInverse J A) :
+    ∃ (W : Submodule ℂ (StrongDual ℂ E)) (D : Submodule ℂ W),
+      IsClosed (W : Set (StrongDual ℂ E)) ∧ IsClosed (D : Set W) ∧
+        Nonempty (StrongDual ℂ X ≃L[ℂ] (W ⧸ D)) := by
+  let T : StrongDual ℂ X →L[ℂ] StrongDual ℂ E := A.precomp ℂ
+  let R : StrongDual ℂ E →L[ℂ] StrongDual ℂ X := J.precomp ℂ
+  have hRT : LeftInverse R T := by
+    intro l
+    ext x
+    change l (A (J x)) = l x
+    rw [hAJ x]
+  have hclosed : IsClosed (T.range : Set (StrongDual ℂ E)) :=
+    hRT.isClosed_range R.continuous T.continuous
+  let e := LinearEquiv.ofInjective T.toLinearMap hRT.injective
+  have hi : Continuous e.symm := by
+    apply (R.continuous.comp continuous_subtype_val).congr
+    intro w
+    obtain ⟨l,hl⟩ := w.property
+    have hw : e l = w := Subtype.ext hl
+    rw [← hw, e.symm_apply_apply]
+    exact hRT l
+  let ec : StrongDual ℂ X ≃L[ℂ] T.range :=
+    { e with continuous_toFun := T.continuous.subtype_mk _, continuous_invFun := hi }
+  let idW := ContinuousLinearMap.id ℂ T.range
+  let eqQ := (exists_ker_quotientEquiv_of_rightInverse idW idW (fun _ ↦ rfl)).choose
+  exact ⟨T.range,idW.ker,hclosed,idW.isClosed_ker,⟨ec.trans eqQ.symm⟩⟩
+open TopologicalSpace in
+/-- Pad the finite sequence model, transpose the retraction, and take the zero-kernel quotient. -/
+private theorem strongCoprimalityPrimaryQuotient_strongDual_model {X : Type*} [AddCommGroup X] [Module ℂ X]
+    [TopologicalSpace X] [IsTopologicalAddGroup X] [ContinuousSMul ℂ X]
+    {M N : ℕ} (e : (Fin M → RapidDecaySequence 1) ≃L[ℂ] X) (h : M ≤ N) :
+    ∃ (W : Submodule ℂ (StrongDual ℂ (Fin N → RapidDecaySequence 1))) (D : Submodule ℂ W),
+      IsClosed (W : Set (StrongDual ℂ (Fin N → RapidDecaySequence 1))) ∧ IsClosed (D : Set W) ∧
+        Nonempty (StrongDual ℂ X ≃L[ℂ] (W ⧸ D)) := by
+  let ret := strongCoprimalityPrimaryQuotient_strongDual_coordinates h
+  let proj := ret.choose
+  let J := ret.choose_spec.choose
+  have hPJ : RightInverse J proj := ret.choose_spec.choose_spec
+  apply strongCoprimalityPrimaryQuotient_strongDual_retract (e.toContinuousLinearMap.comp proj) (J.comp e.symm.toContinuousLinearMap)
+  intro x
+  change e (proj (J (e.symm x))) = x
+  rw [hPJ, e.apply_symm_apply]
+
+open TopologicalSpace in
+/-- Use the unramified sequence model to realize the strong dual inside the prescribed ambient dual. -/
+private theorem strongCoprimalityPrimaryQuotient_strongDual_character {F : Type*} [Field F] [NumberField F]
+    (χ : PontryaginDual (IdeleClassGroup (𝓞 F) F)) (p : IsDedekindDomain.HeightOneSpectrum (𝓞 ℚ)) :
+    let ω := χ.comp (⟨(ideleClassNorm F).ker.subtype, continuous_subtype_val⟩ :
+      (ideleClassNorm F).ker →ₜ* IdeleClassGroup (𝓞 F) F)
+    let T := (finite_nuclearityPlacesAbove (F := F) p).toFinset
+    let E := StrongDual ℂ (Fin T.card → RapidDecaySequence 1)
+    ∃ (W : Submodule ℂ E) (D : Submodule ℂ W),
+      IsClosed (W : Set E) ∧ IsClosed (D : Set W) ∧
+        Nonempty (StrongDual ℂ (StrongCoprimalityQuotient ω T) ≃L[ℂ] (W ⧸ D)) := by
+  classical
+  let ω := χ.comp (⟨(ideleClassNorm F).ker.subtype, continuous_subtype_val⟩ :
+      (ideleClassNorm F).ker →ₜ* IdeleClassGroup (𝓞 F) F)
+  let S := (finite_nuclearityPlacesAbove (F := F) p).toFinset
+  have h (v : IsDedekindDomain.HeightOneSpectrum (𝓞 F)) := (Valued.v : Valuation (v.adicCompletion F)
+    (WithZero (Multiplicative ℤ))).exists_isUniformizer_of_isCyclic_of_nontrivial
+  let π : (v : IsDedekindDomain.HeightOneSpectrum (𝓞 F)) → (v.adicCompletion F)ˣ :=
+    fun v ↦ Units.mk0 (h v).choose (h v).choose_spec.ne_zero
+  have hπ (v : IsDedekindDomain.HeightOneSpectrum (𝓞 F)) : Valuation.IsUniformizer
+      (Valued.v : Valuation (v.adicCompletion F) (WithZero (Multiplicative ℤ))) (π v).val :=
+    (h v).choose_spec
+  let T := S.filter (fun v ↦ (ideleClassNormTwist χ 0).IsUnramifiedAt v)
+  have hT (v : IsDedekindDomain.HeightOneSpectrum (𝓞 F)) (hv : v ∈ T) : v.under (𝓞 ℚ) = p :=
+    (finite_nuclearityPlacesAbove (F := F) p).mem_toFinset.mp (Finset.mem_filter.mp hv).1
+  let model := strongCoprimalityPrimaryQuotient_sequence_decay ω p T hT π (fun v _ ↦ hπ v)
+  let equiv := (strongCoprimality χ S π (fun v _ ↦ hπ v)).choose
+  let C := equiv.symm.toContinuousLinearMap.comp model.choose
+  have hC : Bijective C := equiv.symm.bijective.comp model.choose_spec
+  have hNF : IsFrechetTVS (StrongCoprimalityQuotient ω S) ∧
+      IsNuclearTVS.{0} (StrongCoprimalityQuotient ω S) :=
+    strongCoprimalityPrimaryQuotient_nuclearFrechet ω p
+  let e := (strongCoprimalityPrimaryQuotient_strongDual_sequenceEquiv hNF.1 C hC).some
+  exact strongCoprimalityPrimaryQuotient_strongDual_model e (Finset.card_filter_le S (fun v ↦ (ideleClassNormTwist χ 0).IsUnramifiedAt v))
+
 /-- Paper: Remark 7.5.0.2, p. 379.
 The strong dual of the primary quotient is a Hausdorff quotient of a closed subspace
 of the strong dual of the finite product of rapidly decreasing sequence spaces.
@@ -1209,7 +1326,12 @@ theorem strongCoprimalityPrimaryQuotient_strongDual_subquotient (ω : Pontryagin
     let E := StrongDual ℂ (Fin T.card → RapidDecaySequence 1)
     ∃ (W : Submodule ℂ E) (D : Submodule ℂ W),
       IsClosed (W : Set E) ∧ IsClosed (D : Set W) ∧
-        Nonempty (StrongDual ℂ (StrongCoprimalityQuotient ω T) ≃L[ℂ] (W ⧸ D)) := by sorry
+        Nonempty (StrongDual ℂ (StrongCoprimalityQuotient ω T) ≃L[ℂ] (W ⧸ D)) := by
+  let lift := strongCoprimalityPrimaryQuotient_sequence_lift ω
+  let χ := lift.choose
+  have hχ := lift.choose_spec
+  rw [← hχ]
+  exact strongCoprimalityPrimaryQuotient_strongDual_character χ p
 
 -- TODO(later): needs §8.1 for the orbital-support and support-constrained basis claims
 -- announced on p. 374 and at the start of Chapter 8 on p. 381.
