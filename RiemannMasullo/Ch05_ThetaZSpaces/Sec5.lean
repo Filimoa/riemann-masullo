@@ -1,6 +1,7 @@
 module
 
 public import RiemannMasullo.Ch05_ThetaZSpaces.Sec4
+import all RiemannMasullo.Ch05_ThetaZSpaces.Sec2
 
 import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.SeparatingDual
 
@@ -533,10 +534,42 @@ theorem sLocalThetaEigendistributions_eq_span (c : QuasiCharacter Jₛ) :
     (sLocalEigendistributions_eq_span (F := F) (S := S) c)
     (sLocalThetaEigendistribution_mk (F := F) (S := S) c)
 
+/-- Holomorphy descends through a closed linear embedding: limits of difference
+quotients stay in its range and converge in the induced topology. -/
+private theorem sLocalThetaEigendistribution_holomorphic_of_closedEmbedding
+    {E G : Type*} [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+    [IsTopologicalAddGroup E] [ContinuousSMul ℂ E]
+    [AddCommGroup G] [Module ℂ G] [TopologicalSpace G]
+    [IsTopologicalAddGroup G] [ContinuousSMul ℂ G]
+    (L : E →L[ℂ] G) (hL : IsEmbedding L) (hclosed : IsClosed (Set.range L))
+    (f : ℂ → E) (hf : VectorHolomorphicOn (L ∘ f) univ) :
+    VectorHolomorphicOn f univ := by
+  rw [vectorHolomorphicOn_iff_tendsto isOpen_univ] at hf ⊢
+  intro z hz
+  obtain ⟨v, hv⟩ := hf z hz
+  have hmem : v ∈ Set.range L := hclosed.mem_of_tendsto hv (Filter.Eventually.of_forall
+    (fun w ↦ ⟨(w - z)⁻¹ • (f w - f z), by simp [map_smul, map_sub, Function.comp_def]⟩))
+  obtain ⟨u, rfl⟩ := hmem
+  refine ⟨u, hL.tendsto_nhds_iff.mpr ?_⟩
+  simpa only [Function.comp_def, map_smul, map_sub] using hv
+
 /-- Paper: Theorem 5.5.1.2(2), p. 278.
 The normalized S-local family in the strong dual of the theta quotient is holomorphic. -/
 theorem sLocalThetaEigendistribution_holomorphic (χ : PontryaginDual Jₛ) :
-    VectorHolomorphicOn (fun s ↦ sLocalThetaEigendistribution (chartₛ(χ) s)) univ := by sorry
+    VectorHolomorphicOn (fun s ↦ sLocalThetaEigendistribution (chartₛ(χ) s)) univ := by
+  let L := pull(Kₛ)
+  have hL : IsEmbedding L := isEmbedding_transpose_quotient_of_strictLF _
+    (sAdeleSchwartz_strictLF F S) (sAdeleSchwartz_nuclear F S)
+    sLocalAdelicTheta_ker_isClosed sLocalAdelicThetaSpace_strictLF
+  apply sLocalThetaEigendistribution_holomorphic_of_closedEmbedding L hL
+    (isClosed_range_transpose_mkQL _)
+  have he : L ∘ (fun s ↦ sLocalThetaEigendistribution (chartₛ(χ) s)) =
+      (fun s ↦ sLocalNormalizedEigendistribution (chartₛ(χ) s)) := by
+    funext s
+    ext f
+    exact sLocalThetaEigendistribution_mk _ f
+  rw [he]
+  exact sLocalNormalizedEigendistribution_holomorphic χ
 
 end SLocal
 
@@ -670,7 +703,17 @@ theorem globalThetaEigendistributions_eq_span (c : QuasiCharacter C𝔽) :
 The normalized global family in the strong dual of the theta quotient is holomorphic. -/
 theorem globalThetaEigendistribution_holomorphic (χ : PontryaginDual C𝔽) :
     VectorHolomorphicOn (fun s ↦ globalThetaEigendistribution (ideleClassNormTwist χ s))
-      univ := by sorry
+      univ := by
+  let L := pull(K𝔽)
+  apply sLocalThetaEigendistribution_holomorphic_of_closedEmbedding L
+    globalThetaQuotient_transpose_isEmbedding globalThetaQuotient_transpose_isClosed_range
+  have he : L ∘ (fun s ↦ globalThetaEigendistribution (ideleClassNormTwist χ s)) =
+      (fun s ↦ adelicNormalizedEigendistribution (ideleClassNormTwist χ s)) := by
+    funext s
+    ext f
+    exact globalThetaEigendistribution_mk _ f
+  rw [he]
+  exact adelicNormalizedEigendistribution_holomorphic χ
 
 /-- Paper: Remark 5.5.1.4, p. 280.
 The descended S-local eigendistributions span a strongly dense subspace of the theta dual. -/
