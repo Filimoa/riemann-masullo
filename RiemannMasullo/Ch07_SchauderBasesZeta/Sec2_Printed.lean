@@ -802,11 +802,68 @@ def sLocalChangeOfChart_pureNormBase : Prop :=
       ∀ s : ℂ, twistₛ(F, S) ((circleToComplex).comp χ') (s - (t : ℂ) * Complex.I) =
         twistₛ(F, S) ((circleToComplex).comp χ) s
 
+section
+
+universe v
+
+/-- A surjective positive norm has a nontrivial unitary character, detected at norm exp(π). -/
+private theorem sLocalChangeOfChart_pureNormBase_nontrivial {G : Type v} [CommGroup G] [TopologicalSpace G]
+    (m : G →* ℝ≥0ˣ) (hm : Continuous m) (hs : Function.Surjective m) :
+    ∃ χ : PontryaginDual G, χ ≠ 1 := by
+  let χ : PontryaginDual G :=
+    { toFun := fun g ↦ Circle.exp (Real.log ((m g).val : ℝ))
+      map_one' := by simp
+      map_mul' := by
+        intro g h
+        simp only [map_mul, Units.val_mul, NNReal.coe_mul]
+        rw [Real.log_mul (NNReal.coe_ne_zero.mpr (m g).ne_zero) (NNReal.coe_ne_zero.mpr (m h).ne_zero), Circle.exp_add]
+      continuous_toFun := Circle.exp.continuous.comp
+        ((NNReal.continuous_coe.comp (Units.continuous_val.comp hm)).log (fun g ↦ by
+          exact NNReal.coe_ne_zero.mpr (m g).ne_zero)) }
+  refine ⟨χ, ?_⟩
+  intro hχ
+  let r : ℝ≥0ˣ := Units.mk0 ⟨Real.exp Real.pi, (Real.exp_pos _).le⟩ (by
+    exact Subtype.coe_ne_coe.mp (Real.exp_pos Real.pi).ne')
+  obtain ⟨g, hg⟩ := hs r
+  have h := DFunLike.congr_fun hχ g
+  change Circle.exp (Real.log ((m g).val : ℝ)) = 1 at h
+  rw [hg] at h
+  change Circle.exp (Real.log (Real.exp Real.pi)) = 1 at h
+  rw [Real.log_exp] at h
+  exact Circle.exp_pi_ne_one h
+
+/-- Equal nontrivial basepoints contradict the two printed chart identities. -/
+private theorem sLocalChangeOfChart_pureNormBase_false_aux : ¬ sLocalChangeOfChart_pureNormBase.{u} := by
+  intro h
+  let F := ULift.{u} ℚ
+  let := ulift_rat_numberField.{u}
+  let m := sIdeleQuotientNorm F ∅
+  have hm : Continuous m := (isProperMap_sIdeleQuotientNorm F ∅).continuous
+  have hs := (sIdeleQuotientNorm_exists_section (F := F) (S := ∅)).choose_spec.surjective
+  obtain ⟨χ, hχ⟩ := sLocalChangeOfChart_pureNormBase_nontrivial m hm hs
+  have ht := h F ∅ χ χ (fun _ ↦ rfl)
+  obtain ⟨t, ⟨hbase, hchange⟩, -⟩ := ht
+  apply hχ
+  ext g
+  have hb := DFunLike.congr_fun hbase g
+  have hc := DFunLike.congr_fun (hchange 0) g
+  change (χ g : ℂ) = 1 * ((m g).val : ℂ) ^ ((t : ℂ) * Complex.I) at hb
+  change (χ g : ℂ) * ((m g).val : ℂ) ^ (0 - (t : ℂ) * Complex.I) =
+    (χ g : ℂ) * ((m g).val : ℂ) ^ (0 : ℂ) at hc
+  rw [zero_sub, Complex.cpow_zero, mul_one, Complex.cpow_neg] at hc
+  rw [one_mul] at hb
+  rw [← hb, mul_inv_cancel₀ (Circle.coe_ne_zero _)] at hc
+  exact hc.symm
+end
+
 /-- Paper: Chart change before Theorem 7.2.1.4, p. 336.
-For ℚ with the real place and 5, take the quadratic character on the 5-adic units,
-trivial on 5 and on the real factor. It kills the S-units. Its twist by the norm
-to the power i still equals −1 on the 5-adic unit 2, where every pure norm twist is one. -/
-theorem sLocalChangeOfChart_pureNormBase_false : ¬ sLocalChangeOfChart_pureNormBase := by sorry
+Over a universe lift of ℚ with only the archimedean place, use the same
+nontrivial imaginary norm character as both basepoints. The first printed
+identity expresses this character as the pure norm twist. Substituting it
+into the second identity at exponent zero forces the character to be one.
+Its value at norm exp(π) is −1, giving a contradiction. -/
+theorem sLocalChangeOfChart_pureNormBase_false : ¬ sLocalChangeOfChart_pureNormBase :=
+  sLocalChangeOfChart_pureNormBase_false_aux
 
 open Classical in
 /-- Paper: Equation (7.2.1.13), p. 336. The unscaled formula with a specified Laurent exponent. -/
