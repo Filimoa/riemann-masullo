@@ -933,6 +933,15 @@ theorem globalThetaPolarValues_vanish_on_isotype_iff (ω : PontryaginDual (m𝔽
 -- TODO(paper-gap): In (5.5.2.3) each equality loses the value of the polar
 -- functional on the normalized Gaussian. For ℚ(i) the first value is 1/(2π).
 
+private theorem globalThetaPolarValues_eq_eigendistributions_scalar
+    {E : Type*} [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+    (W : Submodule ℂ (StrongDual ℂ E)) (T U : StrongDual ℂ E)
+    (hW : W = Submodule.span ℂ {U}) (hT : T ∈ W) (f : E) (hf : U f = 1) (y : E) :
+    T y = T f * U y := by
+  rw [hW, Submodule.mem_span_singleton] at hT
+  obtain ⟨a, rfl⟩ := hT
+  simp [hf]
+
 /-- Paper: Equation (5.5.2.3), p. 280.
 The two polar functionals are multiples of the descended normalized generators.
 Deviation: The multipliers are the values of the polar functionals on the standard
@@ -941,7 +950,34 @@ theorem globalThetaPolarValues_eq_eigendistributions (x : Θ) :
     let f := adelicStandardGaussian unitaryOne
     globalThetaPolarValues (F := F) x =
       (f zeroAdele * globalThetaEigendistribution (F := F) (1 : QuasiCharacter C𝔽) x,
-        adeleSchwartzFourier f zeroAdele * globalThetaEigendistribution (F := F) normWeight x) := by sorry
+        adeleSchwartzFourier f zeroAdele * globalThetaEigendistribution (F := F) normWeight x) := by
+  let P := globalThetaPolarValues (F := F)
+  let T₁ : D(ℬ(𝔸[F])) := (ContinuousLinearMap.fst ℂ ℂ ℂ).comp (P.comp (K𝔽).mkQL)
+  let T₂ : D(ℬ(𝔸[F])) := (ContinuousLinearMap.snd ℂ ℂ ℂ).comp (P.comp (K𝔽).mkQL)
+  have h₁ : T₁ ∈ adelicEigendistributions (1 : QuasiCharacter C𝔽) := by
+    intro u f
+    exact globalThetaPolarValues_fst_translate_rep u f
+  have h₂ : T₂ ∈ adelicEigendistributions normWeight := by
+    intro u f
+    change T₂ (schwartzBruhatUnitTranslate u f) =
+      ((1 : ℂ) * normℂ((QuotientGroup.mk u : C𝔽)) ^ (1 : ℂ)) * T₂ f
+    rw [Complex.cpow_one, one_mul]
+    exact globalThetaPolarValues_snd_translate_rep u f
+  have hzero : ideleClassNormTwist (F := F) unitaryOne 0 = 1 := by
+    ext g
+    change (1 : ℂ) * normℂ(g) ^ (0 : ℂ) = 1
+    simp
+  have hn₁ : adelicNormalizedEigendistribution (F := F) (1 : QuasiCharacter C𝔽)
+      (adelicStandardGaussian unitaryOne) = 1 := by
+    rw [← hzero]
+    exact adelicNormalizedEigendistribution_gaussian unitaryOne 0
+  have hn₂ := adelicNormalizedEigendistribution_gaussian (F := F) unitaryOne 1
+  obtain ⟨y, rfl⟩ := (K𝔽).mkQ_surjective x
+  exact Prod.ext
+    (globalThetaPolarValues_eq_eigendistributions_scalar _ T₁ _
+      (adelicEigendistributions_eq_span _) h₁ _ hn₁ y)
+    (globalThetaPolarValues_eq_eigendistributions_scalar _ T₂ _
+      (adelicEigendistributions_eq_span _) h₂ _ hn₂ y)
 
 /-- Paper: Remark 5.5.2.2, p. 281.
 The putative orbit sum for evaluation at zero is summable exactly when the test
