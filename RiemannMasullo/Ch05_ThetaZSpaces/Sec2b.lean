@@ -3,6 +3,7 @@ module
 public import RiemannMasullo.Ch05_ThetaZSpaces.Sec2
 import all RiemannMasullo.Ch05_ThetaZSpaces.Sec2
 import all RiemannMasullo.AppD_SchwartzBruhat.Sec1b
+import all RiemannMasullo.AppA_AlgebraicNT.Sec3
 import RiemannMasullo.ForMathlib.Topology.Algebra.Group.AutomaticContinuity
 import RiemannMasullo.ForMathlib.Analysis.LocallyConvex.Separable
 public import RiemannMasullo.Ch04_PeriodicSchauderBases.Sec3b
@@ -1930,11 +1931,168 @@ theorem sLocalThetaFourier_toGlobal
     let fourier := (existsUnique_globalThetaFourier (F := F)).exists.choose
     fourier (sLocalThetaToGlobal F S x) = sLocalThetaToGlobal F S (fourierS x) := by sorry
 
+section
+
+local instance sLocalThetaFourier_mem_isotype_measurableSpace :
+    MeasurableSpace (SAdeleRing F S) := by
+  letI (w : InfinitePlace F) : MeasurableSpace w.Completion := borel _
+  letI (v : S) : MeasurableSpace (v.val.adicCompletion F) := borel _
+  exact inferInstanceAs (MeasurableSpace
+    (((w : InfinitePlace F) → w.Completion) × ((v : S) → v.val.adicCompletion F)))
+
+/-- Paper: Theorem 5.2.4.1(1), p. 239.
+Multiplication by a norm-one S-idele preserves additive Tamagawa measure.
+This isolates the change of variables needed to exchange character isotypes:
+the product of the local additive Haar scaling factors is the S-idele norm. -/
+private theorem sLocalThetaFourier_mem_isotype_measurePreserving (u : (SAdeleRing F S)ˣ)
+    (hu : sIdeleNorm F S u = 1) :
+    MeasurePreserving (fun z : SAdeleRing F S ↦ u.val * z)
+      (sAdditiveTamagawaMeasure F S) (sAdditiveTamagawaMeasure F S) := by
+  classical
+  let := sAdeleRing_borelSpace (F := F) (S := S)
+  letI : MeasurableSpace 𝔸[F] := borel _
+  letI : BorelSpace 𝔸[F] := ⟨rfl⟩
+  let μ := additiveTamagawaMeasure F
+  letI : μ.IsAddHaarMeasure := (additiveTamagawaMeasure_existsUnique F).exists.choose_spec.1
+  let g := sIdeleInsertion F S u
+  have hgn : ideleNorm F g = 1 := (ideleNorm_sIdeleInsertion F S u).trans hu
+  have hg : MeasurePreserving (fun a : 𝔸[F] ↦ g.val * a) μ μ := by
+    refine ⟨(continuous_const.mul continuous_id).measurable, ?_⟩
+    ext B hB
+    rw [Measure.map_apply (show Measurable (fun a : 𝔸[F] ↦ g.val * a) from
+      (continuous_const.mul continuous_id).measurable) hB]
+    have hpre : (fun a : 𝔸[F] ↦ g.val * a) ⁻¹' B =
+        (fun a : 𝔸[F] ↦ g⁻¹.val * a) '' B := by
+      ext a
+      constructor
+      · intro ha
+        refine ⟨g.val * a, ha, ?_⟩
+        exact Units.inv_mul_cancel_left g a
+      · rintro ⟨b, hb, rfl⟩
+        change g.val * (g⁻¹.val * b) ∈ B
+        simpa only [Units.mul_inv_cancel_left] using hb
+    rw [hpre, adeleHaar_mul_image F μ g⁻¹ B hB]
+    simp [map_inv, hgn]
+  let U : Set 𝔸[F] := integralAdelesOutside F S
+  have hi := sIdeleInsertion_apply F S u
+  have hpre : (fun a : 𝔸[F] ↦ g.val * a) ⁻¹' U = U := by
+    ext a
+    change g.val * a ∈ integralAdelesOutside F S ↔ a ∈ integralAdelesOutside F S
+    simp only [integralAdelesOutside, Subring.mem_iInf, Subring.mem_comap]
+    change (∀ v, v ∉ S → g.val.2 v * a.2 v ∈ v.adicCompletionIntegers F) ↔
+      ∀ v, v ∉ S → a.2 v ∈ v.adicCompletionIntegers F
+    constructor <;> intro h v hv
+    · simpa only [g, hi.2.2 v hv, one_mul] using h v hv
+    · simpa only [g, hi.2.2 v hv, one_mul] using h v hv
+  have hgU := hg.restrict_preimage_emb (measurableEmbedding_const_smul g) U
+  rw [hpre] at hgU
+  obtain ⟨c, hc, _, hp, _⟩ := sAdeleProjection_dual_masses F S
+  have hproj : adeleProjection F S g.val = u.val := by
+    apply Prod.ext
+    · exact hi.1
+    · funext v
+      exact hi.2.1 v
+  have hcomm : Semiconj (adeleProjection F S) (fun a : 𝔸[F] ↦ g.val * a)
+      (fun z : SAdeleRing F S ↦ u.val * z) := by
+    intro a
+    rw [map_mul, hproj]
+  have hs := hp.of_semiconj hgU hcomm (continuous_const.mul continuous_id).measurable
+  simpa only [smul_smul, inv_mul_cancel₀ hc, one_smul] using hs.smul_measure c⁻¹
+
+private theorem sLocalThetaFourier_mem_isotype_unitTranslate (u : (SAdeleRing F S)ˣ)
+    (hu : sIdeleNorm F S u = 1) (f : ℬₛ(S)) :
+    sAdeleSchwartzFourier (schwartzBruhatUnitTranslate u f) =
+      schwartzBruhatUnitTranslate u⁻¹ (sAdeleSchwartzFourier f) := by
+  let := sAdeleRing_borelSpace (F := F) (S := S)
+  apply Subtype.ext
+  funext y
+  change (∫ z : SAdeleRing F S, f (Multiplicative.ofAdd (u⁻¹.val * z)) *
+    star (sAdeleStandardCharacter F S (z * y.toAdd) : ℂ)
+    ∂sAdditiveTamagawaMeasure F S) =
+    ∫ z : SAdeleRing F S, f (Multiplicative.ofAdd z) *
+      star (sAdeleStandardCharacter F S (z * (u.val * y.toAdd)) : ℂ)
+      ∂sAdditiveTamagawaMeasure F S
+  have h := (sLocalThetaFourier_mem_isotype_measurePreserving u hu).integral_comp
+    (measurableEmbedding_const_smul u)
+    (fun z : SAdeleRing F S ↦ f (Multiplicative.ofAdd (u⁻¹.val * z)) *
+      star (sAdeleStandardCharacter F S (z * y.toAdd) : ℂ))
+  refine h.symm.trans ?_
+  apply integral_congr_ae
+  filter_upwards [] with z
+  rw [Units.inv_mul_cancel_left]
+  have hm : (u.val * z) * y.toAdd = z * (u.val * y.toAdd) := by ring
+  rw [hm]
+
+end
+
+section
+
+private theorem sLocalThetaFourier_mem_isotype_descend
+    {A E : Type*} (q : A → E) (hq : Surjective q)
+    (e r r' : E → E) (f t t' : A → A)
+    (he : ∀ a, e (q a) = q (f a))
+    (hr : ∀ a, r (q a) = q (t a))
+    (hr' : ∀ a, r' (q a) = q (t' a))
+    (hft : ∀ a, f (t a) = t' (f a)) (x : E) : e (r x) = r' (e x) := by
+  obtain ⟨a, rfl⟩ := hq x
+  rw [hr, he, he, hr', hft]
+
+private theorem sLocalThetaFourier_mem_isotype_of_intertwining
+    {G E : Type*} [CommGroup G] [TopologicalSpace G]
+    [AddCommGroup E] [Module ℂ E] [TopologicalSpace E]
+    (ρ : G →* (E →L[ℂ] E)) (e : E ≃L[ℂ] E) (he : Involutive e)
+    (hρ : ∀ (g : G) (x : E), e (ρ g x) = ρ g⁻¹ (e x))
+    (χ : PontryaginDual G) (x : E) :
+    e x ∈ actionIsotype ρ χ⁻¹ ↔ x ∈ actionIsotype ρ χ := by
+  have forward (ω : PontryaginDual G) (y : E) (hy : y ∈ actionIsotype ρ ω) :
+      e y ∈ actionIsotype ρ ω⁻¹ := by
+    rw [mem_actionIsotype] at hy ⊢
+    intro g
+    rw [← inv_inv g, ← hρ, hy, map_smul]
+    simp only [map_inv, inv_inv]
+    change (↑(ω g) : ℂ)⁻¹ • e y = (↑((ω g)⁻¹) : ℂ) • e y
+    rw [Circle.coe_inv]
+  constructor
+  · intro hx
+    simpa only [he x, inv_inv] using forward χ⁻¹ (e x) hx
+  · exact forward χ x
+
+end
+
+private theorem sLocalThetaFourier_mem_isotype_unit_intertwines
+    (u : (SAdeleRing F S)ˣ) (hu : sIdeleNorm F S u = 1) (y : Θₛ(S)) :
+    let fourier := (existsUnique_sLocalThetaFourier (F := F) (S := S)).exists.choose
+    fourier (ρₛ(S) (QuotientGroup.mk u) y) =
+      ρₛ(S) (QuotientGroup.mk u⁻¹) (fourier y) := by
+  let fourier := (existsUnique_sLocalThetaFourier (F := F) (S := S)).exists.choose
+  have hf := (existsUnique_sLocalThetaFourier (F := F) (S := S)).exists.choose_spec
+  have ha := (existsUnique_sLocalThetaAction (F := F) (S := S)).exists.choose_spec.2
+  exact sLocalThetaFourier_mem_isotype_descend
+    (A := ℬₛ(S)) (E := Θₛ(S)) (Kₛ(S)).mkQ (Kₛ(S)).mkQ_surjective
+    fourier (ρₛ(S) (QuotientGroup.mk u)) (ρₛ(S) (QuotientGroup.mk u⁻¹))
+    sAdeleSchwartzFourier (schwartzBruhatUnitTranslate u) (schwartzBruhatUnitTranslate u⁻¹)
+    hf.2 (ha u) (ha u⁻¹) (sLocalThetaFourier_mem_isotype_unitTranslate u hu) y
+
+private theorem sLocalThetaFourier_mem_isotype_intertwines
+    (g : J₁(S)) (y : Θₛ(S)) :
+    let fourier := (existsUnique_sLocalThetaFourier (F := F) (S := S)).exists.choose
+    fourier (ρₛ(S) g.val y) = ρₛ(S) g.val⁻¹ (fourier y) := by
+  obtain ⟨u, hu⟩ := QuotientGroup.mk_surjective g.val
+  have hn : sIdeleNorm F S u = 1 :=
+    (sIdeleQuotientNorm_mk F S u).symm.trans ((congrArg (mₛ(S)) hu).trans g.property)
+  have h := sLocalThetaFourier_mem_isotype_unit_intertwines u hn y
+  simpa only [QuotientGroup.mk_inv, hu] using h
+
 /-- Paper: Theorem 5.2.4.1(1), p. 239.
 S-local Fourier transform exchanges each norm-one isotype with its conjugate. -/
 theorem sLocalThetaFourier_mem_isotype (χ : PontryaginDual (J₁(S))) (x : Θₛ(S)) :
     let fourier := (existsUnique_sLocalThetaFourier (F := F) (S := S)).exists.choose
-    fourier x ∈ Eₛω(S, χ⁻¹) ↔ x ∈ Eₛω(S, χ) := by sorry
+    fourier x ∈ Eₛω(S, χ⁻¹) ↔ x ∈ Eₛω(S, χ) := by
+  let fourier := (existsUnique_sLocalThetaFourier (F := F) (S := S)).exists.choose
+  exact sLocalThetaFourier_mem_isotype_of_intertwining
+    (G := J₁(S)) (E := Θₛ(S)) (ρₛ₁(S)) fourier
+    (existsUnique_sLocalThetaFourier (F := F) (S := S)).exists.choose_spec.1
+    (sLocalThetaFourier_mem_isotype_intertwines (F := F) (S := S)) χ x
 
 /-- Paper: Theorem 5.2.4.1(2), p. 239.
 Global Fourier transform exchanges each norm-one isotype with its conjugate. -/
