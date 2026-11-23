@@ -165,7 +165,21 @@ theorem sLocalPWThetaSobolevMap_apply {a : ℝ} (ha : 0 < a) (ω : PontryaginDua
 Globalized polar-free tests yield weighted Sobolev vectors.
 Deviation: Use direct integer-indicator insertion as in the repaired §7.3.2. -/
 theorem globalPWTheta_memLp (a : ℝ) (ω : PontryaginDual C₁) (f : Zₛ) :
-    MemLp (globalWeightedTheta(a, ω, f)) 2 globalWMeasure := by sorry
+    MemLp (globalWeightedTheta(a, ω, f)) 2 globalWMeasure := by
+  let f₀ : adelePolarSubspace F := ⟨sAdeleSchwartzToGlobal F S f.val,
+    sAdeleSchwartzToGlobal_mem_polarSubspace f⟩
+  let x : globalPolarFreeThetaSubmodule (F := F) ω :=
+    ⟨Submodule.Quotient.mk f₀.val, ⟨f₀.val, f₀.property, rfl⟩⟩
+  obtain ⟨j, -, -, hj⟩ := exists_globalHomogeneousThetaSobolevInclusion
+    (F := F) (a := a) hGeo (le_max_right s 0) ω
+  have he := (hj f₀ x rfl).2
+  have hv := (Lp.memLp (j x).val.val).ae_eq ((withDensity_absolutelyContinuous _ _).ae_le he)
+  apply hv.mono_measure (withDensity_mono (Filter.Eventually.of_forall fun g ↦ ?_))
+  apply ENNReal.ofReal_le_ofReal
+  unfold intervalSobolevDensity
+  apply mul_le_mul_of_nonneg_left _ (le_trans (Real.exp_pos _).le (le_max_left _ _))
+  exact Real.rpow_le_rpow_of_exponent_le (by nlinarith [sq_nonneg (logNorm(m𝔽) g)])
+    (div_le_div_of_nonneg_right (le_max_left s 0) (by norm_num))
 
 /-- Paper: (11.2.1.2) and (11.2.1.7), pp. 487–488.
 Insert a local polar-free test and take its weighted global homogeneous theta class.
@@ -384,7 +398,8 @@ homogeneous theta vector in the global invariant level.
 Deviation: Use the direct integer-indicator insertion. -/
 theorem globalInvariantPWSobolev_mem (a : ℝ) (ω : PontryaginDual C₁) (Λ : ℝ)
     (f : Zₛ) (_hf : f ∈ band(sLocalPWProductRegion S Λ)) :
-    globalPWThetaSobolevMap (F := F) (S := S) (s := s) a ω f ∈ globalInvariantPWSobolev (F := F) (S := S) hs a ω Λ := by sorry
+    globalPWThetaSobolevMap (F := F) (S := S) (s := s) a ω f ∈ globalInvariantPWSobolev (F := F) (S := S) hs a ω Λ := by
+  exact Submodule.le_topologicalClosure _ (Submodule.subset_span ⟨⟨f, _hf⟩, rfl⟩)
 
 local notation "invLevel(" a ", " ω ", " Λ ")" =>
   (globalInvariantPWSobolev (F := F) (S := S) hs a ω Λ).comap (GeoIsotype(ω)).subtype
@@ -652,7 +667,31 @@ theorem primeOrbitalSobolevConvolution_trace_distribution :
     onClosedPrimeQuotient(hs₁, ω(χ),
       ∃ D : StrongDual ℂ (BruhatCompactSupport C𝔽),
         ∀ (φ : BruhatCompactSupport C𝔽) (T : nuclearEndomorphisms OrbQ),
-          T.val = OrbA(φ) → D φ = hilbertTrace T) := by sorry
+          T.val = OrbA(φ) → D φ = hilbertTrace T) := by
+  have traceDistribution {X : Type _} {H : Type _} [AddCommGroup X] [Module ℂ X]
+      [TopologicalSpace X] [IsTopologicalAddGroup X] [NormedAddCommGroup H]
+      [InnerProductSpace ℂ H] [CompleteSpace H] (A : X → H →L[ℂ] H)
+      (h : ∃ T : X →ₗ[ℂ] nuclearEndomorphisms H, (∀ x, (T x).val = A x) ∧
+        Tendsto (fun x : X ↦ traceNorm (H := H) (T x)) (𝓝 0) (𝓝 0)) :
+      ∃ D : StrongDual ℂ X, ∀ (x : X) (U : nuclearEndomorphisms H),
+        U.val = A x → D x = hilbertTrace U := by
+    obtain ⟨T, hT, ht⟩ := h
+    obtain ⟨L, hL⟩ := hilbertTrace_linear (H := H)
+    let D : X →ₗ[ℂ] ℂ := L.comp T
+    have hb (x : X) : ‖D x‖ ≤ traceNorm (T x) :=
+      (congrArg (fun c : ℂ ↦ ‖c‖) (hL (T x))).le.trans (norm_hilbertTrace_le (T x))
+    have hd : Continuous D := continuous_of_continuousAt_zero D <| by
+      change Tendsto D (𝓝 0) (𝓝 (D 0))
+      rw [D.map_zero]
+      exact squeeze_zero_norm hb ht
+    refine ⟨⟨D, hd⟩, fun x U hU ↦ ?_⟩
+    have heq : T x = U := Subtype.ext ((hT x).trans hU.symm)
+    exact (hL (T x)).trans (congrArg (hilbertTrace (H := H)) heq)
+  have hn := primeOrbitalSobolevConvolution_traceNorm_continuous (F := F) (p := p)
+    (χ := χ) (h₁ := h₁) (_hdeg := _hdeg) (_hχ := _hχ)
+  exact onClosedPrimeQuotient(hs₁, ω(χ), by
+    apply traceDistribution (X := BruhatCompactSupport C𝔽) (H := OrbQ) (fun φ ↦ OrbA(φ))
+    exact hn)
 
 local notation "zeros" => {z : ℂ // reciprocalPartialHeckeEulerProduct χ (Sₚ(p)) z = 0}
 local notation "mult(" z ")" => orbitalEulerMultiplicity χ (Sₚ(p)) z
