@@ -5,6 +5,7 @@ public import RiemannMasullo.Ch05_ThetaZSpaces.Sec4
 public import RiemannMasullo.Ch06_LocalGlobal.Sec3
 public import RiemannMasullo.Ch09_HardySobolev.Sec3
 
+import all RiemannMasullo.Ch05_ThetaZSpaces.Sec2b
 import all RiemannMasullo.AppA_AlgebraicNT.Sec3
 import all RiemannMasullo.Ch02_AdelicTheta.Sec3
 import all RiemannMasullo.Ch02_AdelicTheta.Sec2b
@@ -669,13 +670,69 @@ local notation "H" => ↥(H𝔽(a, hI, hs))
 local notation "ρ₁" => (R𝔽(a, hI, hs)).comp (ideleClassNorm F).ker.subtype
 local notation "Hω(" ω ")" => actionIsotype ρ₁ ω
 
+section
+
+universe u v
+
+/-- The compact-group average, restricted to its isotype, is a unique open surjection. -/
+private theorem existsUnique_thetaSobolevAverage_of_compact
+    {G : Type u} [CommGroup G] [TopologicalSpace G] [IsTopologicalGroup G]
+    (N : Subgroup G) [T2Space N] [CompactSpace N] [MeasurableSpace N] [BorelSpace N]
+    {E : Type v} [NormedAddCommGroup E] [NormedSpace ℂ E] [CompleteSpace E]
+    (μ : Measure N) [μ.IsHaarMeasure] (ρ : G →* (E →L[ℂ] E))
+    (hρ : Continuous fun p : G × E ↦ ρ p.1 p.2) (ω : PontryaginDual N) :
+    ∃! A : E →L[ℂ] actionIsotype (ρ.comp N.subtype) ω,
+      IsPettisIsotypicAverageOn μ univ (ρ.comp N.subtype) ω
+        ((actionIsotype (ρ.comp N.subtype) ω).subtypeL.comp A) ∧
+      Surjective A ∧ IsOpenMap A := by
+  let : NormedSpace ℝ E := NormedSpace.restrictScalars ℝ ℂ E
+  have hc : @CompleteSpace E (IsTopologicalAddGroup.rightUniformSpace E) := by
+    rw [IsUniformAddGroup.rightUniformSpace_eq]
+    infer_instance
+  obtain ⟨P, hP, huniq⟩ := existsUnique_globalThetaIsotypicAverage_of_compact N hc μ ρ hρ ω
+  have hcρ : Continuous (fun p : N × E ↦ (ρ.comp N.subtype) p.1 p.2) :=
+    hρ.comp ((continuous_subtype_val.comp continuous_fst).prodMk continuous_snd)
+  have hr := compactActionAverage_range μ (ρ.comp N.subtype) hcρ ω P hP
+  let V := actionIsotype (ρ.comp N.subtype) ω
+  have hmem (x : E) : P x ∈ V := by
+    change P x ∈ actionIsotype (ρ.comp N.subtype) ω
+    rw [← hr]
+    exact LinearMap.mem_range_self P.toLinearMap x
+  let A : E →L[ℂ] V := P.codRestrict V hmem
+  have hcomp : V.subtypeL.comp A = P := by ext; rfl
+  have hsurj : Surjective A := by
+    rintro ⟨x, hx⟩
+    obtain ⟨y, hy⟩ := (show x ∈ LinearMap.range P.toLinearMap from hr.symm ▸ hx)
+    exact ⟨y, Subtype.ext hy⟩
+  obtain ⟨e, he⟩ := compactActionAverage_quotient_equiv μ (ρ.comp N.subtype) hcρ ω P hP
+  have hA : (A : E → V) = e ∘ P.ker.mkQ := by
+    funext x
+    exact Subtype.ext (he x).symm
+  refine ⟨A, ⟨by rwa [hcomp], hsurj, ?_⟩, ?_⟩
+  · rw [hA]
+    exact e.isOpenMap.comp P.ker.isOpenMap_mkQ
+  · intro B hB
+    apply ContinuousLinearMap.ext
+    intro x
+    apply Subtype.ext
+    exact DFunLike.congr_fun (huniq _ hB.1) x
+
+end
+
 /-- Paper: Proposition 10.1.1.5(1), p. 436. The global Pettis average for the
 norm-one Tamagawa measure is a continuous open linear surjection onto its isotype.
 Deviation: Use polar-free global theta functions, as in Definition 10.1.1.1(1). -/
 theorem existsUnique_globalThetaSobolevAverage (ω : PontryaginDual C₁) :
     ∃! P : H →L[ℂ] Hω(ω),
       IsPettisIsotypicAverageOn μ𝔽₁ univ ρ₁ ω ((Hω(ω)).subtypeL.comp P) ∧
-      Surjective P ∧ IsOpenMap P := by sorry
+      Surjective P ∧ IsOpenMap P := by
+  let : CompactSpace C₁ := (ideleClassGroup_finiteness F).2.1
+  let : (μ𝔽₁).IsHaarMeasure :=
+    (multiplicativeTamagawaMeasures_existsUnique F).exists.choose_spec.2.2.2.1
+  let : CompleteSpace H := (globalThetaSobolev_closed_complete_separable a hI hs).2.1
+  with_reducible_and_instances
+    exact existsUnique_thetaSobolevAverage_of_compact (E := H) (ideleClassNorm F).ker
+      μ𝔽₁ (R𝔽(a, hI, hs)) (exists_globalThetaSobolevAction (F := F) a hI hs).choose_spec.2.1 ω
 
 local notation "P(" ω ")" =>
   (existsUnique_globalThetaSobolevAverage (F := F) (a := a) hI hs ω).exists.choose
@@ -693,6 +750,32 @@ theorem exists_globalHomogeneousThetaSobolevInclusion (ω : PontryaginDual C₁)
           ((j x).val.val : C𝔽 → ℂ) =ᵐ[μ𝔽]
             modulationWeight m𝔽 a (homogeneousAdelicTheta ω f.val) := by sorry
 
+section
+
+universe u v
+
+/-- The kernel of a compact isotypic average is the closed span of twisted differences. -/
+private theorem thetaSobolevAverage_quotient_equiv_of_compact
+    {G : Type u} [CommGroup G] [TopologicalSpace G] [IsTopologicalGroup G]
+    [T2Space G] [CompactSpace G] [MeasurableSpace G] [BorelSpace G]
+    {E : Type v} [NormedAddCommGroup E] [NormedSpace ℂ E]
+    (μ : Measure G) [μ.IsHaarMeasure] (ρ : G →* (E →L[ℂ] E))
+    (hρ : Continuous fun p : G × E ↦ ρ p.1 p.2) (ω : PontryaginDual G)
+    (P : E →L[ℂ] actionIsotype ρ ω)
+    (hP : IsPettisIsotypicAverageOn μ univ ρ ω ((actionIsotype ρ ω).subtypeL.comp P)) :
+    let D := (Submodule.span ℂ (range (fun p : G × E ↦
+      p.2 - star (ω p.1 : ℂ) • ρ p.1 p.2))).topologicalClosure
+    ∃ T : (E ⧸ D) ≃L[ℂ] actionIsotype ρ ω, ∀ u, T (D.mkQ u) = P u := by
+  let : NormedSpace ℝ E := NormedSpace.restrictScalars ℝ ℂ E
+  let Q := (actionIsotype ρ ω).subtypeL.comp P
+  have hker := compactActionAverage_ker μ ρ hρ ω Q hP
+  obtain ⟨e, he⟩ := compactActionAverage_quotient_equiv μ ρ hρ ω Q hP
+  dsimp only
+  rw [← hker]
+  exact ⟨e, fun u ↦ Subtype.ext (he u)⟩
+
+end
+
 /-- Paper: Proposition 10.1.1.5(1), p. 437. The global raw average induces a
 topological linear isomorphism from the completed homogeneous quotient to the isotype.
 Deviation: Use polar-free tests. The completed coinvariant quotient is realized by
@@ -700,7 +783,16 @@ dividing the completed space by the closed span of the twisted differences. -/
 theorem globalThetaSobolevAverage_quotient_equiv (ω : PontryaginDual C₁) :
     let D := (Submodule.span ℂ (range (fun p : C₁ × H ↦
       p.2 - star (ω p.1 : ℂ) • ρ₁ p.1 p.2))).topologicalClosure
-    ∃ T : (H ⧸ D) ≃L[ℂ] Hω(ω), ∀ u : H, T (D.mkQ u) = P(ω) u := by sorry
+    ∃ T : (H ⧸ D) ≃L[ℂ] Hω(ω), ∀ u : H, T (D.mkQ u) = P(ω) u := by
+  let : CompactSpace C₁ := (ideleClassGroup_finiteness F).2.1
+  let : (μ𝔽₁).IsHaarMeasure :=
+    (multiplicativeTamagawaMeasures_existsUnique F).exists.choose_spec.2.2.2.1
+  have hρ : Continuous (fun p : C₁ × H ↦ ρ₁ p.1 p.2) :=
+    (exists_globalThetaSobolevAction (F := F) a hI hs).choose_spec.2.1.comp
+      ((continuous_subtype_val.comp continuous_fst).prodMk continuous_snd)
+  with_reducible_and_instances
+    exact thetaSobolevAverage_quotient_equiv_of_compact μ𝔽₁ ρ₁ hρ ω (P(ω))
+      (existsUnique_globalThetaSobolevAverage (F := F) (a := a) hI hs ω).exists.choose_spec.1
 
 /-- Paper: Proposition 10.1.1.5(2), p. 437. The global coordinate map is a
 continuous injection into the product and factors through the isometric Hilbert sum.
@@ -729,7 +821,16 @@ Deviation: The letter a represents the local weight b of the proposition. -/
 theorem existsUnique_sLocalThetaSobolevAverage (ω : PontryaginDual J₁) :
     ∃! P : H →L[ℂ] Hω(ω),
       IsPettisIsotypicAverageOn μₛ₁ univ ρ₁ ω ((Hω(ω)).subtypeL.comp P) ∧
-      Surjective P ∧ IsOpenMap P := by sorry
+      Surjective P ∧ IsOpenMap P := by
+  let : BorelSpace J₁ := ⟨rfl⟩
+  let : CompactSpace J₁ := isCompact_iff_compactSpace.mp
+    ((isProperMap_sIdeleQuotientNorm F S).isCompact_preimage (isCompact_singleton (x := 1)))
+  let : (μₛ₁).IsHaarMeasure := (sLocalNormOneQuotientMeasure_normProduct (F := F) (S := S)).1
+  let : CompleteSpace H := (sLocalThetaSobolev_closed_complete_separable ha hI hs hp).2.1
+  with_reducible_and_instances
+    exact existsUnique_thetaSobolevAverage_of_compact (E := H) (sIdeleQuotientNorm F S).ker
+      μₛ₁ (Rₛ(ha, hI, hs, hp))
+      (exists_sLocalThetaSobolevAction (F := F) (S := S) ha hI hs hp).choose_spec.2.1 ω
 
 local notation "P(" ω ")" =>
   (existsUnique_sLocalThetaSobolevAverage (F := F) (S := S) ha hI hs hα ω).exists.choose
@@ -751,7 +852,17 @@ space by the closed span of the twisted differences. -/
 theorem sLocalThetaSobolevAverage_quotient_equiv (ω : PontryaginDual J₁) :
     let D := (Submodule.span ℂ (range (fun p : J₁ × H ↦
       p.2 - star (ω p.1 : ℂ) • ρ₁ p.1 p.2))).topologicalClosure
-    ∃ T : (H ⧸ D) ≃L[ℂ] Hω(ω), ∀ u : H, T (D.mkQ u) = P(ω) u := by sorry
+    ∃ T : (H ⧸ D) ≃L[ℂ] Hω(ω), ∀ u : H, T (D.mkQ u) = P(ω) u := by
+  let : BorelSpace J₁ := ⟨rfl⟩
+  let : CompactSpace J₁ := isCompact_iff_compactSpace.mp
+    ((isProperMap_sIdeleQuotientNorm F S).isCompact_preimage (isCompact_singleton (x := 1)))
+  let : (μₛ₁).IsHaarMeasure := (sLocalNormOneQuotientMeasure_normProduct (F := F) (S := S)).1
+  have hρ : Continuous (fun p : J₁ × H ↦ ρ₁ p.1 p.2) :=
+    (exists_sLocalThetaSobolevAction (F := F) (S := S) ha hI hs hp).choose_spec.2.1.comp
+      ((continuous_subtype_val.comp continuous_fst).prodMk continuous_snd)
+  with_reducible_and_instances
+    exact thetaSobolevAverage_quotient_equiv_of_compact μₛ₁ ρ₁ hρ ω (P(ω))
+      (existsUnique_sLocalThetaSobolevAverage (F := F) (S := S) ha hI hs hα ω).exists.choose_spec.1
 
 /-- Paper: Proposition 10.1.1.5(2), p. 437. The S-local coordinate map is a
 continuous injection into the product and factors through the isometric Hilbert sum.
